@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Terminal, MessageSquare, Settings, LogOut } from 'lucide-react';
+import { Terminal, MessageSquare, Settings, Network, LogOut } from 'lucide-react';
 import { api } from '../api';
 
 interface LayoutProps {
@@ -44,6 +44,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     >
                         <MessageSquare size={18} />
                         Conversations
+                    </NavLink>
+                    <NavLink
+                        to="/cluster"
+                        className={({ isActive }) =>
+                            `flex items-center gap-3 px-3 py-2 rounded-md transition-colors ${isActive
+                                ? 'bg-brand/10 text-brand'
+                                : 'text-slate-400 hover:bg-slate-700/50 hover:text-slate-200'
+                            }`
+                        }
+                    >
+                        <Network size={18} />
+                        Cluster
                     </NavLink>
                     <NavLink
                         to="/settings"

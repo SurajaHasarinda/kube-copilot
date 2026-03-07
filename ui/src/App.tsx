@@ -6,6 +6,7 @@ import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import ConversationsPage from './pages/ConversationsPage';
 import SettingsPage from './pages/SettingsPage';
+import ClusterVisualizationPage from './pages/ClusterVisualizationPage';
 
 /**
  * ProtectedRoute component that redirects to login if the user is not authenticated.
@@ -57,6 +58,14 @@ function App() {
                     <ProtectedRoute>
                         <Layout>
                             <SettingsPage />
+                        </Layout>
+                    </ProtectedRoute>
+                } />
+
+                <Route path="/cluster" element={
+                    <ProtectedRoute>
+                        <Layout>
+                            <ClusterVisualizationPage />
                         </Layout>
                     </ProtectedRoute>
                 } />

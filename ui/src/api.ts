@@ -115,5 +115,15 @@ export const api = {
         // Health does not require auth, but we can use the same client
         const response = await axios.get<HealthResponse>('/api/v1/health');
         return response.data;
+    },
+
+    getClusterStructure: async (): Promise<any> => {
+        try {
+            const response = await apiClient.get('/cluster/structure');
+            return response.data;
+        } catch (error) {
+            console.error('Cluster structure fetch error:', error);
+            return { error: 'Failed to fetch cluster structure' };
+        }
     }
 };

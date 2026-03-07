@@ -21,6 +21,7 @@ from controllers import (
     incident_controller,
     session_controller,
     health_controller,
+    cluster_controller,
 )
 
 # ── Module-level graph reference (set during lifespan) ────────────────────────
@@ -78,6 +79,7 @@ app.include_router(auth_controller.router)
 app.include_router(chat_controller.router)
 app.include_router(incident_controller.router)
 app.include_router(session_controller.router)
+app.include_router(cluster_controller.router)
 
 
 # ── CLI launcher ──────────────────────────────────────────────────────────────
