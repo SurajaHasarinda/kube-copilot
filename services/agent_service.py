@@ -159,5 +159,44 @@ class AgentService:
         )
 
 
+    def get_session_history(self, session_id: str) -> list[dict]:
+        """
+        Get the message history for a session from the LangGraph checkpointer.
+        Returns a list of dicts with role and content.
+        """
+        session = session_service.get_session(session_id)
+        if not session:
+            return []
+
+        config = {"configurable": {"thread_id": session.thread_id}}
+        state_snap = self.graph.get_state(config)
+        
+        if not hasattr(state_snap, "values") or not state_snap.values:
+            return []
+
+        messages = state_snap.values.get("messages", [])
+        history = []
+
+        for msg in messages:
+            if hasattr(msg, "type"):
+                if msg.type == "human":
+                    content = msg.content
+                    if isinstance(content, list):
+                        content = " ".join(str(x.get("text", x)) if isinstance(x, dict) else str(x) for x in content)
+                    content_str = str(content).strip()
+                    if content_str:
+                        history.append({"role": "human", "content": content_str})
+                elif msg.type == "ai":
+                    content = msg.content
+                    if isinstance(content, list):
+                        content = " ".join(str(x.get("text", x)) if isinstance(x, dict) else str(x) for x in content)
+                    
+                    content_str = str(content).strip()
+                    if content_str:
+                        history.append({"role": "agent", "content": content_str})
+                    
+        return history
+
+
 # Module-level singleton
 agent_service = AgentService()

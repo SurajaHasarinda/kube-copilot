@@ -8,8 +8,9 @@ DELETE /api/v1/sessions/{id}      — Delete a session
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from config.auth import verify_jwt_token
-from config.schemas import SessionInfo, SessionListResponse
+from config.schemas import SessionInfo, SessionListResponse, SessionHistoryResponse, MessageResponse
 from services.session_service import session_service
+from services.agent_service import agent_service
 
 router = APIRouter(prefix="/api/v1/sessions", tags=["Sessions"])
 
@@ -45,3 +46,25 @@ async def delete_session(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Session '{session_id}' not found.",
         )
+
+
+@router.get("/{session_id}/history", response_model=SessionHistoryResponse)
+async def get_session_history(
+    session_id: str,
+    token_payload: dict = Depends(verify_jwt_token),
+):
+    """Get the message history for a session."""
+    session = session_service.get_session(session_id)
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Session '{session_id}' not found.",
+        )
+    
+    messages = agent_service.get_session_history(session_id)
+    return SessionHistoryResponse(
+        messages=[
+            MessageResponse(role=msg["role"], content=msg["content"])
+            for msg in messages
+        ]
+    )

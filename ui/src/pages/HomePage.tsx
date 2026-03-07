@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { ChatResponse, ApprovalInfo } from '../types';
 import { Send, User, CheckCircle, XCircle, ChevronRight } from 'lucide-react';
@@ -98,7 +99,27 @@ const HomePage: React.FC = () => {
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
     const [sessionId, setSessionId] = useState('');
+    const [searchParams, setSearchParams] = useSearchParams();
     const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const querySessionId = searchParams.get('session');
+        if (querySessionId && querySessionId !== sessionId) {
+            setSessionId(querySessionId);
+            setLoading(true);
+            api.getSessionHistory(querySessionId).then(res => {
+                setMessages(res.messages.map(m => ({
+                    role: m.role as 'human' | 'agent',
+                    content: m.content
+                })));
+            }).catch(err => {
+                console.error('Failed to load history', err);
+                setMessages([{ role: 'agent', content: '❌ Failed to load session history.' }]);
+            }).finally(() => {
+                setLoading(false);
+            });
+        }
+    }, [searchParams, sessionId]);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -165,7 +186,7 @@ const HomePage: React.FC = () => {
                     <p className="text-sm text-slate-400">Session: {sessionId || 'New'}</p>
                 </div>
                 <button
-                    onClick={() => { setMessages([]); setSessionId(''); }}
+                    onClick={() => { setMessages([]); setSessionId(''); setSearchParams({}); }}
                     className="px-3 py-1.5 bg-slate-800 text-slate-300 hover:text-white rounded text-sm transition-colors cursor-pointer"
                 >
                     Clear Chat

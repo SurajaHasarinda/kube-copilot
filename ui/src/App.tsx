@@ -4,7 +4,7 @@ import { api } from './api';
 import Layout from './components/Layout';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
-import IncidentsPage from './pages/IncidentsPage';
+import ConversationsPage from './pages/ConversationsPage';
 
 /**
  * ProtectedRoute component that redirects to login if the user is not authenticated.
@@ -44,10 +44,10 @@ function App() {
                     </ProtectedRoute>
                 } />
 
-                <Route path="/incidents" element={
+                <Route path="/conversations" element={
                     <ProtectedRoute>
                         <Layout>
-                            <IncidentsPage />
+                            <ConversationsPage />
                         </Layout>
                     </ProtectedRoute>
                 } />

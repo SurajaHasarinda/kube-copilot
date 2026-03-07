@@ -91,6 +91,15 @@ class SessionListResponse(BaseModel):
     sessions: list[SessionInfo]
 
 
+class MessageResponse(BaseModel):
+    role: str
+    content: str
+
+
+class SessionHistoryResponse(BaseModel):
+    messages: list[MessageResponse]
+
+
 # ── Incidents ────────────────────────────────────────────────────────────────
 
 

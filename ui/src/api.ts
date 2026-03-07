@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { TokenResponse, ChatResponse, SessionListResponse, IncidentListResponse, HealthResponse } from './types';
+import { TokenResponse, ChatResponse, SessionListResponse, HealthResponse, SessionHistoryResponse } from './types';
 
 // Setup base configuration for axios client
 const apiClient = axios.create({
@@ -65,10 +65,8 @@ export const api = {
         await apiClient.delete(`/sessions/${sessionId}`);
     },
 
-    getIncidents: async (namespace: string = '', limit: number = 20): Promise<IncidentListResponse> => {
-        const response = await apiClient.get<IncidentListResponse>('/incidents', {
-            params: { namespace, limit }
-        });
+    getSessionHistory: async (sessionId: string): Promise<SessionHistoryResponse> => {
+        const response = await apiClient.get<SessionHistoryResponse>(`/sessions/${sessionId}/history`);
         return response.data;
     },
 

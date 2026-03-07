@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Terminal, AlertTriangle, LogOut } from 'lucide-react';
+import { Terminal, MessageSquare, LogOut } from 'lucide-react';
 import { api } from '../api';
 
 interface LayoutProps {
@@ -34,7 +34,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                         Chat
                     </NavLink>
                     <NavLink
-                        to="/incidents"
+                        to="/conversations"
                         className={({ isActive }) =>
                             `flex items-center gap-3 px-3 py-2 rounded-md transition-colors ${isActive
                                 ? 'bg-brand/10 text-brand'
@@ -42,8 +42,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                             }`
                         }
                     >
-                        <AlertTriangle size={18} />
-                        Incidents
+                        <MessageSquare size={18} />
+                        Conversations
                     </NavLink>
                 </nav>
 

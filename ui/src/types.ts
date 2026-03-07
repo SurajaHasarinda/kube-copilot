@@ -37,6 +37,15 @@ export interface SessionListResponse {
     sessions: SessionInfo[];
 }
 
+export interface MessageResponse {
+    role: 'human' | 'agent';
+    content: string;
+}
+
+export interface SessionHistoryResponse {
+    messages: MessageResponse[];
+}
+
 export interface IncidentRecord {
     id: number;
     timestamp: string;
