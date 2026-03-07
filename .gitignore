@@ -1,0 +1,27 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+data/
+*.db
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# Node UI
+node_modules/
+dist-ssr/
+*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
