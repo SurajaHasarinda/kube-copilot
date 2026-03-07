@@ -30,7 +30,7 @@ JWT_ALGORITHM: str = "HS256"
 JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "480"))
 
 ADMIN_USERNAME: str = os.getenv("ADMIN_USERNAME", "admin")
-ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "password")
+ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "admin123")
 
 CORS_ORIGINS: list[str] = [
     origin.strip()

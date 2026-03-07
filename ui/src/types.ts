@@ -8,6 +8,12 @@ export interface TokenResponse {
     expires_in_minutes: number;
 }
 
+export interface UserInfo {
+    id: string;
+    username: string;
+    created_at: string;
+}
+
 export interface ApprovalAction {
     tool: string;
     args: any;

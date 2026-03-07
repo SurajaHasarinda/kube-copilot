@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { TokenResponse, ChatResponse, SessionListResponse, HealthResponse, SessionHistoryResponse } from './types';
+import { TokenResponse, ChatResponse, SessionListResponse, HealthResponse, SessionHistoryResponse, UserInfo } from './types';
 
 // Setup base configuration for axios client
 const apiClient = axios.create({
@@ -31,6 +31,47 @@ export const api = {
         } catch (error) {
             console.error('Login Error:', error);
             return false;
+        }
+    },
+
+    getUserInfo: async (): Promise<UserInfo | null> => {
+        try {
+            const response = await apiClient.get<UserInfo>('/auth/me');
+            return response.data;
+        } catch (error) {
+            console.error('Get user info error:', error);
+            return null;
+        }
+    },
+
+    changePassword: async (currentPassword: string, newPassword: string): Promise<boolean> => {
+        try {
+            await apiClient.post('/auth/change-password', {
+                current_password: currentPassword,
+                new_password: newPassword
+            });
+            return true;
+        } catch (error) {
+            console.error('Password change error:', error);
+            return false;
+        }
+    },
+
+    changeUsername: async (newUsername: string, password: string): Promise<{success: boolean, token?: string}> => {
+        try {
+            const response = await apiClient.post<{message: string, access_token: string, expires_in_minutes: number}>('/auth/change-username', {
+                new_username: newUsername,
+                password
+            });
+            // Update stored token
+            if (response.data.access_token) {
+                localStorage.setItem('token', response.data.access_token);
+                return { success: true, token: response.data.access_token };
+            }
+            return { success: false };
+        } catch (error) {
+            console.error('Username change error:', error);
+            return { success: false };
         }
     },
 

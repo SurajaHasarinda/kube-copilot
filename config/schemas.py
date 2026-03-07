@@ -26,6 +26,22 @@ class TokenResponse(BaseModel):
     expires_in_minutes: int
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(..., min_length=6)
+
+
+class ChangeUsernameRequest(BaseModel):
+    new_username: str = Field(..., min_length=3)
+    password: str = Field(..., description="Current password for verification")
+
+
+class UserInfoResponse(BaseModel):
+    id: str
+    username: str
+    created_at: str
+
+
 # ── Chat ─────────────────────────────────────────────────────────────────────
 
 
