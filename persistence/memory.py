@@ -5,15 +5,15 @@ Allows the agent to "remember" past diagnoses across sessions so it can
 detect recurring patterns (e.g., "This pod has crashed 3 times today").
 """
 
-import psycopg2
-from psycopg2.extras import RealDictCursor
+import psycopg
+from psycopg.rows import dict_row
 from datetime import datetime, timezone
 from config.settings import POSTGRES_URL
 
 
 def _get_connection():
     """Get a connection to the PostgreSQL database, creating tables if needed."""
-    conn = psycopg2.connect(POSTGRES_URL, cursor_factory=RealDictCursor)
+    conn = psycopg.connect(POSTGRES_URL, row_factory=dict_row)
     with conn.cursor() as cur:
         cur.execute("""
             CREATE TABLE IF NOT EXISTS incidents (
@@ -26,6 +26,7 @@ def _get_connection():
         """)
         conn.commit()
     return conn
+
 
 
 def save_incident(namespace: str, query: str, diagnosis: str) -> None:
