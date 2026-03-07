@@ -185,12 +185,6 @@ const HomePage: React.FC = () => {
                     </h1>
                     <p className="text-sm text-slate-400">Session: {sessionId || 'New'}</p>
                 </div>
-                <button
-                    onClick={() => { setMessages([]); setSessionId(''); setSearchParams({}); }}
-                    className="px-3 py-1.5 bg-slate-800 text-slate-300 hover:text-white rounded text-sm transition-colors cursor-pointer"
-                >
-                    Clear Chat
-                </button>
             </div>
 
             {/* Chat Area */}
