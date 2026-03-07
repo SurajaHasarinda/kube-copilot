@@ -34,7 +34,8 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import AIMessage, ToolMessage, SystemMessage
 from langgraph.graph import StateGraph, END
 from langgraph.types import interrupt
-from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.postgres import PostgresSaver
+from config.database import get_pool
 
 from config.settings import GOOGLE_API_KEY, GEMINI_MODEL
 from agent.state import AgentState
@@ -240,7 +241,8 @@ def build_graph(checkpointer=None):
     _llm_with_tools = llm.bind_tools(ALL_TOOLS)
 
     if checkpointer is None:
-        checkpointer = MemorySaver()
+        checkpointer = PostgresSaver(get_pool())
+        checkpointer.setup()
 
     graph = StateGraph(AgentState)
 

@@ -72,7 +72,9 @@ class AgentService:
 
         try:
             result = self.graph.invoke(initial_state, config)
-            return self._process_graph_result(result, session, config)
+            res = self._process_graph_result(result, session, config)
+            session_service.save_session(session)
+            return res
         except Exception as e:
             return AgentResult(
                 session_id=session.session_id,
@@ -111,9 +113,12 @@ class AgentService:
         try:
             result = self.graph.invoke(Command(resume=approved), config)
             session.has_pending_approval = False
-            return self._process_graph_result(result, session, config)
+            res = self._process_graph_result(result, session, config)
+            session_service.save_session(session)
+            return res
         except Exception as e:
             session.has_pending_approval = False
+            session_service.save_session(session)
             return AgentResult(
                 session_id=session.session_id,
                 type="error",
