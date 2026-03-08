@@ -60,8 +60,8 @@ async def lifespan(application: FastAPI):
             except Exception as e:
                 print(f"❌ Background scan error: {e}")
             
-            # Wait for 1 minute before next scan
-            time.sleep(60)
+            # Wait for 5 minutes before next scan
+            time.sleep(300)
 
     scanner_thread = threading.Thread(target=run_periodic_scan, daemon=True)
     scanner_thread.start()
