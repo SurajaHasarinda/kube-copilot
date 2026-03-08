@@ -56,11 +56,12 @@ async def lifespan(application: FastAPI):
             try:
                 # Run a full cluster scan
                 cluster_monitor_service.scan_cluster()
+                print("⏱️  Background scan completed.")
             except Exception as e:
                 print(f"❌ Background scan error: {e}")
             
-            # Wait for 5 minutes before next scan
-            time.sleep(300)
+            # Wait for 1 minute before next scan
+            time.sleep(60)
 
     scanner_thread = threading.Thread(target=run_periodic_scan, daemon=True)
     scanner_thread.start()

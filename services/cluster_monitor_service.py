@@ -84,6 +84,8 @@ def _save_anomaly(cur, anomaly: dict) -> int:
 
     if anomaly.get("severity") == "critical":
         emails = auth_service.get_all_alert_emails()
+        if emails:
+            print(f"📢 Critical anomaly detected! Sending alert emails to: {', '.join(emails)}")
         for email in emails:
             try:
                 send_critical_anomaly_email(email, anomaly)
