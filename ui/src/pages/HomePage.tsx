@@ -7,38 +7,13 @@ import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import remarkGfm from 'remark-gfm';
+import { MentionItem, fetchClusterStructureMentions, fetchAnomalyMentions } from '../utils/contextCache';
 
 interface Message {
     role: 'human' | 'agent';
     content: string;
     approvalInfo?: ApprovalInfo | null;
 }
-
-interface MentionItem {
-    type: string;
-    name: string;
-    namespace?: string;
-    text: string;
-}
-
-const flattenClusterStructure = (node: any, currentNamespace = ''): MentionItem[] => {
-    const items: MentionItem[] = [];
-    let ns = currentNamespace;
-
-    if (node.type === 'namespace') {
-        ns = node.name;
-        items.push({ type: node.type, name: node.name, text: `@namespace/${node.name}` });
-    } else if (node.type !== 'cluster' && node.type !== 'resource-group') {
-        items.push({ type: node.type, name: node.name, namespace: ns, text: `@${node.type}/${node.name}` });
-    }
-
-    if (node.children) {
-        for (const child of node.children) {
-            items.push(...flattenClusterStructure(child, ns));
-        }
-    }
-    return items;
-};
 
 const MessageContent: React.FC<{ content: string }> = ({ content }) => {
     const lines = content.split('\n');
@@ -136,12 +111,29 @@ const HomePage: React.FC = () => {
     const [selectedContexts, setSelectedContexts] = useState<MentionItem[]>([]);
 
     useEffect(() => {
-        // Load cluster structure in background for mentions
-        api.getClusterStructure().then(res => {
-            if (!res.error) {
-                setMentionItems(flattenClusterStructure(res));
+        let mounted = true;
+
+        // 1. Load anomalies fast (from database)
+        fetchAnomalyMentions().then(anomalyItems => {
+            if (mounted && anomalyItems.length > 0) {
+                setMentionItems(prev => {
+                    const nonAnomalies = prev.filter(i => i.type !== 'anomaly');
+                    return [...anomalyItems, ...nonAnomalies];
+                });
             }
         });
+
+        // 2. Load cluster structure (cached client-side)
+        fetchClusterStructureMentions().then(structItems => {
+            if (mounted && structItems.length > 0) {
+                setMentionItems(prev => {
+                    const existingAnomalies = prev.filter(i => i.type === 'anomaly');
+                    return [...existingAnomalies, ...structItems];
+                });
+            }
+        });
+
+        return () => { mounted = false; };
     }, []);
 
     const filteredMentions = React.useMemo(() => {
@@ -387,34 +379,50 @@ const HomePage: React.FC = () => {
             {/* Input Area */}
             <div className="pt-4 mt-auto relative">
                 {/* Mention Popover */}
-                {mentionSearch !== null && filteredMentions.length > 0 && (
+                {mentionSearch !== null && (
                     <div className="absolute bottom-full left-0 mb-2 w-80 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl overflow-hidden z-20 animate-slide-up">
-                        <div className="px-3 py-2 bg-slate-900/50 border-b border-slate-700/50">
+                        <div className="px-3 py-2 bg-slate-900/50 border-b border-slate-700/50 flex justify-between items-center">
                             <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Attach Context</span>
+                            {mentionItems.length === 0 && <span className="text-[10px] text-brand animate-pulse">Loading data...</span>}
                         </div>
                         <div className="max-h-60 overflow-y-auto custom-scrollbar p-1">
-                            {filteredMentions.map((item, idx) => (
-                                <button
-                                    key={idx}
-                                    onClick={() => insertMention(item)}
-                                    className={`w-full text-left px-3 py-2 rounded-lg flex flex-col gap-0.5 transition-colors cursor-pointer ${idx === mentionIndex ? 'bg-brand/20 border border-brand/30' : 'hover:bg-slate-700/50 border border-transparent'
-                                        }`}
-                                >
-                                    <div className="flex justify-between items-center">
-                                        <span className={`text-sm font-medium ${idx === mentionIndex ? 'text-brand' : 'text-slate-200'}`}>
-                                            {item.name}
-                                        </span>
-                                        <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${item.type === 'namespace' ? 'bg-blue-900/30 text-blue-400' :
-                                            item.type === 'pod' ? 'bg-green-900/30 text-green-400' :
-                                                item.type === 'deployment' ? 'bg-purple-900/30 text-purple-400' :
-                                                    'bg-slate-700 text-slate-400'
-                                            }`}>
-                                            {item.type}
-                                        </span>
-                                    </div>
-                                    <span className="text-xs text-slate-500 font-mono">{item.text}</span>
-                                </button>
-                            ))}
+                            {filteredMentions.length > 0 ? (
+                                filteredMentions.map((item, idx) => (
+                                    <button
+                                        key={idx}
+                                        title={`${item.name}\n${item.text}`}
+                                        onMouseDown={(e) => {
+                                            // VERY IMPORTANT: Prevent default mouse down behavior.
+                                            // If we don't do this, clicking the dropdown button will blur
+                                            // the text input field, which sets the cursor index to 0, completely
+                                            // breaking the insertMention logic.
+                                            e.preventDefault();
+                                            insertMention(item);
+                                        }}
+                                        className={`w-full text-left px-3 py-2 rounded-lg flex flex-col gap-0.5 transition-colors cursor-pointer ${idx === mentionIndex ? 'bg-brand/20 border border-brand/30' : 'hover:bg-slate-700/50 border border-transparent'
+                                            }`}
+                                    >
+                                        <div className="flex justify-between items-center">
+                                            <span className={`text-sm font-medium ${idx === mentionIndex ? 'text-brand' : 'text-slate-200'} truncate mr-2`}>
+                                                {item.name}
+                                            </span>
+                                            <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded shrink-0 ${item.type === 'namespace' ? 'bg-blue-900/30 text-blue-400' :
+                                                item.type === 'pod' ? 'bg-green-900/30 text-green-400' :
+                                                    item.type === 'deployment' ? 'bg-purple-900/30 text-purple-400' :
+                                                        item.type === 'anomaly' ? 'bg-red-900/30 text-red-400' :
+                                                            'bg-slate-700 text-slate-400'
+                                                }`}>
+                                                {item.type}
+                                            </span>
+                                        </div>
+                                        <span className="text-xs text-slate-500 font-mono truncate">{item.text}</span>
+                                    </button>
+                                ))
+                            ) : (
+                                <div className="p-4 flex flex-col items-center justify-center text-slate-500 gap-2">
+                                    <span className="text-sm">No references found</span>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
