@@ -7,6 +7,7 @@ import LoginPage from './pages/LoginPage';
 import ConversationsPage from './pages/ConversationsPage';
 import SettingsPage from './pages/SettingsPage';
 import ClusterVisualizationPage from './pages/ClusterVisualizationPage';
+import ClusterAnomaliesPage from './pages/ClusterAnomaliesPage';
 
 /**
  * ProtectedRoute component that redirects to login if the user is not authenticated.
@@ -66,6 +67,14 @@ function App() {
                     <ProtectedRoute>
                         <Layout>
                             <ClusterVisualizationPage />
+                        </Layout>
+                    </ProtectedRoute>
+                } />
+
+                <Route path="/anomalies" element={
+                    <ProtectedRoute>
+                        <Layout>
+                            <ClusterAnomaliesPage />
                         </Layout>
                     </ProtectedRoute>
                 } />

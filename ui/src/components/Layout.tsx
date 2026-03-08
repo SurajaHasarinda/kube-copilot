@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Terminal, MessageSquare, Settings, Network, LogOut } from 'lucide-react';
+import { Terminal, MessageSquare, Settings, Network, ShieldAlert, LogOut } from 'lucide-react';
 import { api } from '../api';
 
 interface LayoutProps {
@@ -56,6 +56,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     >
                         <Network size={18} />
                         Cluster
+                    </NavLink>
+                    <NavLink
+                        to="/anomalies"
+                        className={({ isActive }) =>
+                            `flex items-center gap-3 px-3 py-2 rounded-md transition-colors ${isActive
+                                ? 'bg-red-900/20 text-red-400'
+                                : 'text-slate-400 hover:bg-slate-700/50 hover:text-slate-200'
+                            }`
+                        }
+                    >
+                        <ShieldAlert size={18} />
+                        Anomalies
                     </NavLink>
                     <NavLink
                         to="/settings"

@@ -57,9 +57,9 @@ export const api = {
         }
     },
 
-    changeUsername: async (newUsername: string, password: string): Promise<{success: boolean, token?: string}> => {
+    changeUsername: async (newUsername: string, password: string): Promise<{ success: boolean, token?: string }> => {
         try {
-            const response = await apiClient.post<{message: string, access_token: string, expires_in_minutes: number}>('/auth/change-username', {
+            const response = await apiClient.post<{ message: string, access_token: string, expires_in_minutes: number }>('/auth/change-username', {
                 new_username: newUsername,
                 password
             });
@@ -125,5 +125,58 @@ export const api = {
             console.error('Cluster structure fetch error:', error);
             return { error: 'Failed to fetch cluster structure' };
         }
-    }
+    },
+
+    scanCluster: async (): Promise<any> => {
+        try {
+            const response = await apiClient.post('/cluster/scan');
+            return response.data;
+        } catch (error) {
+            console.error('Cluster scan error:', error);
+            return { error: 'Failed to scan cluster' };
+        }
+    },
+
+    getAnomalies: async (namespace?: string, severity?: string, limit: number = 50): Promise<any> => {
+        try {
+            const params: Record<string, string | number> = { limit };
+            if (namespace) params.namespace = namespace;
+            if (severity) params.severity = severity;
+            const response = await apiClient.get('/cluster/anomalies', { params });
+            return response.data;
+        } catch (error) {
+            console.error('Anomalies fetch error:', error);
+            return { anomalies: [], stats: {} };
+        }
+    },
+
+    getAnomalyDetail: async (id: number): Promise<any> => {
+        try {
+            const response = await apiClient.get(`/cluster/anomalies/${id}`);
+            return response.data;
+        } catch (error) {
+            console.error('Anomaly detail fetch error:', error);
+            return null;
+        }
+    },
+
+    resolveAnomaly: async (id: number): Promise<boolean> => {
+        try {
+            await apiClient.post(`/cluster/anomalies/${id}/resolve`);
+            return true;
+        } catch (error) {
+            console.error('Resolve anomaly error:', error);
+            return false;
+        }
+    },
+
+    getAnomalyStats: async (): Promise<any> => {
+        try {
+            const response = await apiClient.get('/cluster/anomalies/stats');
+            return response.data;
+        } catch (error) {
+            console.error('Anomaly stats error:', error);
+            return { critical: 0, errors: 0, warnings: 0, resolved: 0, total: 0 };
+        }
+    },
 };

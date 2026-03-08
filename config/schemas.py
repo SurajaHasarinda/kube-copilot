@@ -131,6 +131,37 @@ class IncidentListResponse(BaseModel):
     incidents: list[IncidentRecord]
 
 
+# ── Cluster Anomalies ────────────────────────────────────────────────────────
+
+
+class AnomalyRecord(BaseModel):
+    id: int
+    timestamp: str
+    severity: str
+    category: str
+    namespace: str
+    resource_type: str
+    resource_name: str
+    message: str
+    details: str = ""
+    logs: str = ""
+    node_name: str = ""
+    resolved: bool = False
+
+
+class AnomalyListResponse(BaseModel):
+    anomalies: list[AnomalyRecord]
+    stats: dict = {}
+
+
+class AnomalyStatsResponse(BaseModel):
+    critical: int = 0
+    errors: int = 0
+    warnings: int = 0
+    resolved: int = 0
+    total: int = 0
+
+
 # ── Health ───────────────────────────────────────────────────────────────────
 
 
@@ -138,3 +169,4 @@ class HealthResponse(BaseModel):
     status: str
     k8s_connected: bool
     active_sessions: int
+
