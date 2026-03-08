@@ -71,7 +71,7 @@ class AgentService:
         }
 
         try:
-            result = self.graph.invoke(initial_state, config)
+            result = self._run_and_log_graph(initial_state, config, session.session_id)
             res = self._process_graph_result(result, session, config)
             session_service.save_session(session)
             return res
@@ -111,7 +111,7 @@ class AgentService:
         config = {"configurable": {"thread_id": session.thread_id}}
 
         try:
-            result = self.graph.invoke(Command(resume=approved), config)
+            result = self._run_and_log_graph(Command(resume=approved), config, session.session_id)
             session.has_pending_approval = False
             res = self._process_graph_result(result, session, config)
             session_service.save_session(session)
@@ -124,6 +124,27 @@ class AgentService:
                 type="error",
                 content=f"Agent error: {e}",
             )
+
+    def _run_and_log_graph(self, inputs, config: dict, session_id: str) -> dict:
+        """
+        Runs the graph using streaming to intercept and log node execution and tool calls.
+        Returns the final state values.
+        """
+        print(f"\n--- [{session_id}] Starting Graph Execution ---")
+        for event in self.graph.stream(inputs, config, stream_mode="updates"):
+            for node, state in event.items():
+                print(f"[{session_id}] 🔄 Node executed: {node}")
+                if isinstance(state, dict) and "messages" in state:
+                    messages = state["messages"] if isinstance(state["messages"], list) else [state["messages"]]
+                    for msg in messages:
+                        if hasattr(msg, "tool_calls") and msg.tool_calls:
+                            tool_names = [t["name"] for t in msg.tool_calls]
+                            print(f"[{session_id}] 🛠️ Agent called tools: {tool_names}")
+                        elif getattr(msg, "type", None) == "tool":
+                            tool_name = getattr(msg, "name", "unknown")
+                            print(f"[{session_id}] ✅ Tool completed: {tool_name}")
+        print(f"--- [{session_id}] Graph Execution Paused/Completed ---\n")
+        return self.graph.get_state(config).values
 
     def _process_graph_result(
         self, result: dict, session: Session, config: dict
