@@ -10,6 +10,7 @@ interface Message {
     role: 'human' | 'agent';
     content: string;
     approvalInfo?: ApprovalInfo | null;
+    approvalStatus?: 'approved' | 'denied' | null;
 }
 
 const HomePage: React.FC = () => {
@@ -129,9 +130,9 @@ const HomePage: React.FC = () => {
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
     };
 
-    const handleApprove = async (approved: boolean) => {
+    const handleApprove = async (msgIndex: number, approved: boolean) => {
+        setMessages(prev => prev.map((m, i) => i === msgIndex ? { ...m, approvalStatus: approved ? 'approved' : 'denied' } : m));
         setLoading(true);
-        setMessages(prev => [...prev, { role: 'human', content: approved ? 'Approved the action.' : 'Denied the action.' }]);
         try {
             appendAgentMessage(await api.approveAction(sessionId, approved));
         } catch {
@@ -189,14 +190,26 @@ const HomePage: React.FC = () => {
                                             </div>
                                         ))}
                                     </div>
-                                    <div className="flex gap-2">
-                                        <button onClick={() => handleApprove(true)} className="flex items-center gap-1.5 bg-success/20 text-success hover:bg-success hover:text-white px-3 py-1.5 rounded transition-colors text-sm cursor-pointer">
-                                            <CheckCircle size={16} /> Approve
-                                        </button>
-                                        <button onClick={() => handleApprove(false)} className="flex items-center gap-1.5 bg-danger/20 text-danger hover:bg-danger hover:text-white px-3 py-1.5 rounded transition-colors text-sm cursor-pointer">
-                                            <XCircle size={16} /> Deny
-                                        </button>
-                                    </div>
+                                    {msg.approvalStatus ? (
+                                        <div className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 ${msg.approvalStatus === 'approved'
+                                                ? 'bg-green-900/20 border-green-500/30 text-green-400'
+                                                : 'bg-red-900/20 border-red-500/30 text-red-400'
+                                            }`}>
+                                            {msg.approvalStatus === 'approved'
+                                                ? <><CheckCircle size={16} /><span className="text-sm font-semibold">Action Approved</span></>
+                                                : <><XCircle size={16} /><span className="text-sm font-semibold">Action Denied</span></>
+                                            }
+                                        </div>
+                                    ) : (
+                                        <div className="flex gap-2">
+                                            <button onClick={() => handleApprove(i, true)} className="flex items-center gap-1.5 bg-success/20 text-success hover:bg-success hover:text-white px-3 py-1.5 rounded transition-colors text-sm cursor-pointer">
+                                                <CheckCircle size={16} /> Approve
+                                            </button>
+                                            <button onClick={() => handleApprove(i, false)} className="flex items-center gap-1.5 bg-danger/20 text-danger hover:bg-danger hover:text-white px-3 py-1.5 rounded transition-colors text-sm cursor-pointer">
+                                                <XCircle size={16} /> Deny
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
