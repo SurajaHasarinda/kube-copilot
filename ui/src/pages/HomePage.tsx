@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { ChatResponse, ApprovalInfo } from '../types';
-import { Send, User, CheckCircle, XCircle, ChevronRight } from 'lucide-react';
+import { Send, User, CheckCircle, XCircle, ChevronRight, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -13,6 +13,32 @@ interface Message {
     content: string;
     approvalInfo?: ApprovalInfo | null;
 }
+
+interface MentionItem {
+    type: string;
+    name: string;
+    namespace?: string;
+    text: string;
+}
+
+const flattenClusterStructure = (node: any, currentNamespace = ''): MentionItem[] => {
+    const items: MentionItem[] = [];
+    let ns = currentNamespace;
+
+    if (node.type === 'namespace') {
+        ns = node.name;
+        items.push({ type: node.type, name: node.name, text: `@namespace/${node.name}` });
+    } else if (node.type !== 'cluster' && node.type !== 'resource-group') {
+        items.push({ type: node.type, name: node.name, namespace: ns, text: `@${node.type}/${node.name}` });
+    }
+
+    if (node.children) {
+        for (const child of node.children) {
+            items.push(...flattenClusterStructure(child, ns));
+        }
+    }
+    return items;
+};
 
 const MessageContent: React.FC<{ content: string }> = ({ content }) => {
     const lines = content.split('\n');
@@ -99,8 +125,32 @@ const HomePage: React.FC = () => {
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
     const [sessionId, setSessionId] = useState('');
-    const [searchParams, setSearchParams] = useSearchParams();
+    const [searchParams] = useSearchParams();
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    // Mention state
+    const [mentionItems, setMentionItems] = useState<MentionItem[]>([]);
+    const [mentionSearch, setMentionSearch] = useState<string | null>(null);
+    const [mentionIndex, setMentionIndex] = useState(0);
+    const [selectedContexts, setSelectedContexts] = useState<MentionItem[]>([]);
+
+    useEffect(() => {
+        // Load cluster structure in background for mentions
+        api.getClusterStructure().then(res => {
+            if (!res.error) {
+                setMentionItems(flattenClusterStructure(res));
+            }
+        });
+    }, []);
+
+    const filteredMentions = React.useMemo(() => {
+        if (mentionSearch === null) return [];
+        const term = mentionSearch.toLowerCase();
+        return mentionItems
+            .filter(item => item.text.toLowerCase().includes(term) || item.name.toLowerCase().includes(term))
+            .slice(0, 10); // show top 10
+    }, [mentionSearch, mentionItems]);
 
     useEffect(() => {
         const querySessionId = searchParams.get('session');
@@ -130,10 +180,13 @@ const HomePage: React.FC = () => {
     }, [messages, loading]);
 
     const handleSend = async () => {
-        if (!input.trim()) return;
+        if (!input.trim() && selectedContexts.length === 0) return;
 
-        const userText = input.trim();
+        const contextStr = selectedContexts.map(c => c.text).join(' ');
+        const userText = [contextStr, input.trim()].filter(Boolean).join(' ');
+
         setInput('');
+        setSelectedContexts([]);
         setMessages(prev => [...prev, { role: 'human', content: userText }]);
         setLoading(true);
 
@@ -148,6 +201,89 @@ const HomePage: React.FC = () => {
             setMessages(prev => [...prev, { role: 'agent', content: '❌ Failed to communicate with the agent.' }]);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value;
+        setInput(val);
+
+        const cursor = e.target.selectionStart || 0;
+        const textBeforeCursor = val.slice(0, cursor);
+        // Safely match K8s resource names: words, dots, slashes, dashes
+        const match = textBeforeCursor.match(/@([\w./-]*)$/);
+
+        if (match) {
+            setMentionSearch(match[1]);
+            setMentionIndex(0);
+        } else {
+            setMentionSearch(null);
+        }
+    };
+
+    const insertMention = (item: MentionItem) => {
+        if (!inputRef.current) return;
+        const cursor = inputRef.current.selectionStart || 0;
+        const textBeforeCursor = input.slice(0, cursor);
+        const textAfterCursor = input.slice(cursor);
+
+        const match = textBeforeCursor.match(/@([\w./-]*)$/);
+        if (match) {
+            const index = match.index!;
+            // Remove the auto-complete search query completely
+            const newValue = input.slice(0, index) + textAfterCursor;
+            setInput(newValue);
+            setMentionSearch(null);
+
+            // Add as a context chip if it isn't already there
+            setSelectedContexts(prev => {
+                if (prev.find(c => c.text === item.text)) return prev;
+                return [...prev, item];
+            });
+
+            // Set cursor position back correctly
+            const newCursorPos = index;
+            setTimeout(() => {
+                if (inputRef.current) {
+                    inputRef.current.focus();
+                    inputRef.current.setSelectionRange(newCursorPos, newCursorPos);
+                }
+            }, 0);
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        // Backspace removes context chips when input is empty
+        if (e.key === 'Backspace' && input === '' && selectedContexts.length > 0) {
+            setSelectedContexts(prev => prev.slice(0, -1));
+            return;
+        }
+
+        if (mentionSearch !== null && filteredMentions.length > 0) {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                setMentionIndex(prev => Math.min(prev + 1, filteredMentions.length - 1));
+                return;
+            }
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setMentionIndex(prev => Math.max(prev - 1, 0));
+                return;
+            }
+            if (e.key === 'Enter' || e.key === 'Tab') {
+                e.preventDefault();
+                insertMention(filteredMentions[mentionIndex]);
+                return;
+            }
+            if (e.key === 'Escape') {
+                setMentionSearch(null);
+                return;
+            }
+        }
+
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSend();
         }
     };
 
@@ -249,21 +385,63 @@ const HomePage: React.FC = () => {
             </div>
 
             {/* Input Area */}
-            <div className="pt-4 mt-auto">
-                <div className="relative flex items-center">
+            <div className="pt-4 mt-auto relative">
+                {/* Mention Popover */}
+                {mentionSearch !== null && filteredMentions.length > 0 && (
+                    <div className="absolute bottom-full left-0 mb-2 w-80 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl overflow-hidden z-20 animate-slide-up">
+                        <div className="px-3 py-2 bg-slate-900/50 border-b border-slate-700/50">
+                            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Attach Context</span>
+                        </div>
+                        <div className="max-h-60 overflow-y-auto custom-scrollbar p-1">
+                            {filteredMentions.map((item, idx) => (
+                                <button
+                                    key={idx}
+                                    onClick={() => insertMention(item)}
+                                    className={`w-full text-left px-3 py-2 rounded-lg flex flex-col gap-0.5 transition-colors cursor-pointer ${idx === mentionIndex ? 'bg-brand/20 border border-brand/30' : 'hover:bg-slate-700/50 border border-transparent'
+                                        }`}
+                                >
+                                    <div className="flex justify-between items-center">
+                                        <span className={`text-sm font-medium ${idx === mentionIndex ? 'text-brand' : 'text-slate-200'}`}>
+                                            {item.name}
+                                        </span>
+                                        <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${item.type === 'namespace' ? 'bg-blue-900/30 text-blue-400' :
+                                            item.type === 'pod' ? 'bg-green-900/30 text-green-400' :
+                                                item.type === 'deployment' ? 'bg-purple-900/30 text-purple-400' :
+                                                    'bg-slate-700 text-slate-400'
+                                            }`}>
+                                            {item.type}
+                                        </span>
+                                    </div>
+                                    <span className="text-xs text-slate-500 font-mono">{item.text}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                <div className="relative flex flex-wrap items-center bg-slate-800 border border-slate-700 rounded-lg p-2 pr-12 focus-within:border-brand transition-colors min-h-[58px]">
+                    {selectedContexts.map((ctx, idx) => (
+                        <div key={idx} className="flex items-center gap-1.5 bg-brand/20 text-brand border border-brand/30 text-sm font-medium px-2 py-1.5 rounded-md mb-1 mr-2 mt-1 shadow-sm">
+                            {ctx.text}
+                            <button onClick={() => setSelectedContexts(prev => prev.filter(c => c.text !== ctx.text))} className="hover:text-white transition-colors cursor-pointer text-brand/70">
+                                <X size={14} />
+                            </button>
+                        </div>
+                    ))}
                     <input
+                        ref={inputRef}
                         type="text"
                         value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') handleSend(); }}
-                        placeholder="Ask KubeCopilot..."
-                        className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg p-4 pr-12 focus:outline-none focus:border-brand transition-colors"
+                        onChange={handleInputChange}
+                        onKeyDown={handleKeyDown}
+                        placeholder={selectedContexts.length === 0 ? "Ask KubeCopilot... (Type @ to attach context)" : ""}
+                        className="flex-1 min-w-[200px] bg-transparent text-white focus:outline-none p-2 placeholder-slate-500 text-base"
                         disabled={loading}
                     />
                     <button
                         onClick={handleSend}
-                        disabled={loading || !input.trim()}
-                        className="absolute right-2 p-2 text-brand hover:text-white bg-slate-800 hover:bg-brand rounded-md transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={loading || (!input.trim() && selectedContexts.length === 0)}
+                        className="absolute right-2 bottom-2 text-brand hover:text-white bg-slate-800 hover:bg-brand rounded-md p-2 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed z-10"
                     >
                         <Send size={20} />
                     </button>
