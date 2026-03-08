@@ -359,7 +359,7 @@ const ClusterAnomaliesPage: React.FC = () => {
         { label: 'Critical', value: stats.critical, filterKey: 'critical', icon: <XCircle size={18} className="text-red-400" />, accent: '#EF4444' },
         { label: 'Errors', value: stats.errors, filterKey: 'error', icon: <AlertCircle size={18} className="text-orange-400" />, accent: '#F97316' },
         { label: 'Warnings', value: stats.warnings, filterKey: 'warning', icon: <AlertTriangle size={18} className="text-yellow-400" />, accent: '#EAB308' },
-        { label: 'Resolved', value: stats.resolved, filterKey: '', icon: <CheckCircle2 size={18} className="text-green-400" />, accent: '#22C55E' },
+        { label: 'Resolved', value: stats.resolved, filterKey: 'resolved', icon: <CheckCircle2 size={18} className="text-green-400" />, accent: '#22C55E' },
     ];
 
     return (
@@ -407,16 +407,14 @@ const ClusterAnomaliesPage: React.FC = () => {
             {/* Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
                 {statCards.map(s => {
-                    const isActive = s.filterKey !== '' && filterSeverity === s.filterKey;
+                    const isActive = filterSeverity === s.filterKey;
                     return (
                         <button
                             key={s.label}
                             onClick={() => {
-                                if (s.filterKey === '') return; // Resolved card is not filterable
                                 setFilterSeverity(filterSeverity === s.filterKey ? '' : s.filterKey);
                             }}
-                            className={`text-left bg-slate-800/40 backdrop-blur-sm rounded-xl p-3.5 transition-all duration-200 group hover:bg-slate-800/60 ${s.filterKey === '' ? 'cursor-default' : 'cursor-pointer'
-                                }`}
+                            className={`text-left bg-slate-800/40 backdrop-blur-sm rounded-xl p-3.5 transition-all duration-200 group hover:bg-slate-800/60 cursor-pointer`}
                             style={{
                                 borderWidth: isActive ? '2px' : '1px',
                                 borderColor: isActive ? s.accent : 'rgba(51,65,85,0.4)',

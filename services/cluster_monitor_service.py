@@ -142,6 +142,7 @@ class ClusterMonitorService:
         Returns a list of newly detected anomaly records.
         """
         new_anomalies: list[dict] = []
+        active_keys: set = set()
 
         try:
             namespaces = core_v1_client.list_namespace().items
@@ -156,13 +157,22 @@ class ClusterMonitorService:
                     ns_name = ns.metadata.name
 
                     # Scan pods
-                    new_anomalies.extend(self._scan_pods(cur, ns_name))
+                    new_anomalies.extend(self._scan_pods(cur, ns_name, active_keys))
 
                     # Scan deployments
-                    new_anomalies.extend(self._scan_deployments(cur, ns_name))
+                    new_anomalies.extend(self._scan_deployments(cur, ns_name, active_keys))
 
                     # Scan K8s warning events
-                    new_anomalies.extend(self._scan_events(cur, ns_name))
+                    new_anomalies.extend(self._scan_events(cur, ns_name, active_keys))
+
+                # Auto-resolve anomalies that are no longer active
+                cur.execute("SELECT id, namespace, resource_name, category FROM cluster_anomalies WHERE resolved = FALSE")
+                unresolved_rows = cur.fetchall()
+                
+                for row in unresolved_rows:
+                    anomaly_key = (row["namespace"], row["resource_name"], row["category"])
+                    if anomaly_key not in active_keys:
+                        cur.execute("UPDATE cluster_anomalies SET resolved = TRUE WHERE id = %s", (row["id"],))
 
                 conn.commit()
         finally:
@@ -170,7 +180,7 @@ class ClusterMonitorService:
 
         return new_anomalies
 
-    def _scan_pods(self, cur, namespace: str) -> list[dict]:
+    def _scan_pods(self, cur, namespace: str, active_keys: set) -> list[dict]:
         """Detect pod-level anomalies."""
         anomalies = []
         try:
@@ -189,6 +199,7 @@ class ClusterMonitorService:
                 # ── Waiting state anomalies ──────────────────────────────
                 if cs.state and cs.state.waiting and cs.state.waiting.reason in ABNORMAL_WAITING_REASONS:
                     reason = cs.state.waiting.reason
+                    active_keys.add((namespace, pod_name, reason))
                     if not _check_duplicate(cur, namespace, pod_name, reason):
                         logs = _fetch_pod_logs(namespace, pod_name)
                         anomaly = {
@@ -209,6 +220,7 @@ class ClusterMonitorService:
                 # ── Terminated state anomalies ───────────────────────────
                 if cs.state and cs.state.terminated and cs.state.terminated.reason in ABNORMAL_TERMINATED_REASONS:
                     reason = cs.state.terminated.reason
+                    active_keys.add((namespace, pod_name, reason))
                     if not _check_duplicate(cur, namespace, pod_name, reason):
                         logs = _fetch_pod_logs(namespace, pod_name)
                         anomaly = {
@@ -228,6 +240,7 @@ class ClusterMonitorService:
 
                 # ── High restart count ───────────────────────────────────
                 if cs.restart_count >= RESTART_THRESHOLD:
+                    active_keys.add((namespace, pod_name, "HighRestarts"))
                     if not _check_duplicate(cur, namespace, pod_name, "HighRestarts"):
                         logs = _fetch_pod_logs(namespace, pod_name)
                         anomaly = {
@@ -247,7 +260,9 @@ class ClusterMonitorService:
 
             # ── Pod in Pending/Unknown phase ─────────────────────────────
             if pod.status.phase in ("Pending", "Unknown"):
-                if not _check_duplicate(cur, namespace, pod_name, f"Pod{pod.status.phase}"):
+                category = f"Pod{pod.status.phase}"
+                active_keys.add((namespace, pod_name, category))
+                if not _check_duplicate(cur, namespace, pod_name, category):
                     anomaly = {
                         "timestamp": now,
                         "severity": "warning",
@@ -265,7 +280,7 @@ class ClusterMonitorService:
 
         return anomalies
 
-    def _scan_deployments(self, cur, namespace: str) -> list[dict]:
+    def _scan_deployments(self, cur, namespace: str, active_keys: set) -> list[dict]:
         """Detect deployment-level anomalies."""
         anomalies = []
         try:
@@ -281,6 +296,7 @@ class ClusterMonitorService:
             available = dep.status.available_replicas or 0
 
             if desired > 0 and available == 0:
+                active_keys.add((namespace, dep_name, "DeploymentUnavailable"))
                 if not _check_duplicate(cur, namespace, dep_name, "DeploymentUnavailable"):
                     anomaly = {
                         "timestamp": now,
@@ -297,6 +313,7 @@ class ClusterMonitorService:
                     _save_anomaly(cur, anomaly)
                     anomalies.append(anomaly)
             elif desired > 0 and available < desired:
+                active_keys.add((namespace, dep_name, "DeploymentDegraded"))
                 if not _check_duplicate(cur, namespace, dep_name, "DeploymentDegraded"):
                     anomaly = {
                         "timestamp": now,
@@ -315,7 +332,7 @@ class ClusterMonitorService:
 
         return anomalies
 
-    def _scan_events(self, cur, namespace: str) -> list[dict]:
+    def _scan_events(self, cur, namespace: str, active_keys: set) -> list[dict]:
         """Detect abnormal K8s warning events."""
         anomalies = []
         try:
@@ -342,7 +359,9 @@ class ClusterMonitorService:
             message = event.message or ""
 
             if reason in significant_reasons:
-                if not _check_duplicate(cur, namespace, resource_name, f"Event:{reason}"):
+                category = f"Event:{reason}"
+                active_keys.add((namespace, resource_name, category))
+                if not _check_duplicate(cur, namespace, resource_name, category):
                     anomaly = {
                         "timestamp": now,
                         "severity": "warning",
@@ -382,9 +401,14 @@ class ClusterMonitorService:
                 if namespace:
                     query += " AND namespace = %s"
                     params.append(namespace)
-                if severity:
-                    query += " AND severity = %s"
+
+                if severity == "resolved":
+                    query += " AND resolved = TRUE"
+                elif severity:
+                    query += " AND severity = %s AND resolved = FALSE"
                     params.append(severity)
+                else:
+                    query += " AND resolved = FALSE"
 
                 query += " ORDER BY id DESC LIMIT %s"
                 params.append(limit)
