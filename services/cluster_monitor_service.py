@@ -20,6 +20,9 @@ from psycopg.rows import dict_row
 from config.settings import POSTGRES_URL
 from k8s_tools.client import core_v1_client, apps_v1_client, ApiException
 
+from services.email_service import send_critical_anomaly_email
+from services.auth_service import auth_service
+
 
 # ── Database helpers ─────────────────────────────────────────────────────────
 
@@ -77,7 +80,17 @@ def _save_anomaly(cur, anomaly: dict) -> int:
         ),
     )
     row = cur.fetchone()
-    return row["id"] if row else 0
+    anomaly_id = row["id"] if row else 0
+
+    if anomaly.get("severity") == "critical":
+        emails = auth_service.get_all_alert_emails()
+        for email in emails:
+            try:
+                send_critical_anomaly_email(email, anomaly)
+            except Exception as e:
+                print(f"Error sending alert email to {email}: {e}")
+
+    return anomaly_id
 
 
 def _check_duplicate(cur, namespace: str, resource_name: str, category: str, within_minutes: int = 30) -> bool:

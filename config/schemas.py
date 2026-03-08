@@ -36,9 +36,15 @@ class ChangeUsernameRequest(BaseModel):
     password: str = Field(..., description="Current password for verification")
 
 
+class ChangeEmailRequest(BaseModel):
+    new_email: str = Field(..., description="New email address for receiving critical alerts.")
+    password: str = Field(..., description="Current password for verification")
+
+
 class UserInfoResponse(BaseModel):
     id: str
     username: str
+    email: str | None = None
     created_at: str
 
 

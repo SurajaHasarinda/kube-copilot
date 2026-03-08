@@ -75,6 +75,19 @@ export const api = {
         }
     },
 
+    changeEmail: async (newEmail: string, password: string): Promise<boolean> => {
+        try {
+            await apiClient.post('/auth/change-email', {
+                new_email: newEmail,
+                password
+            });
+            return true;
+        } catch (error) {
+            console.error('Email change error:', error);
+            return false;
+        }
+    },
+
     logout: () => {
         localStorage.removeItem('token');
         window.location.reload();

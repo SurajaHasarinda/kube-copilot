@@ -18,9 +18,15 @@ class AuthService:
                         id TEXT PRIMARY KEY,
                         username TEXT UNIQUE,
                         password_hash TEXT,
+                        email TEXT,
                         created_at TEXT
                     )
                 ''')
+                
+                # Check for existing email column to handle migrations
+                cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name='users' AND column_name='email'")
+                if not cur.fetchone():
+                    cur.execute("ALTER TABLE users ADD COLUMN email TEXT")
                 
                 # Check if we need to seed the default admin
                 cur.execute('SELECT COUNT(*) as c FROM users')
@@ -71,10 +77,26 @@ class AuthService:
         with get_pool().connection() as conn:
             with conn.cursor(row_factory=dict_row) as cur:
                 row = cur.execute(
-                    'SELECT id, username, created_at FROM users WHERE username = %s',
+                    'SELECT id, username, email, created_at FROM users WHERE username = %s',
                     (username,)
                 ).fetchone()
                 return dict(row) if row else None
+
+    def change_email(self, username: str, new_email: str, password: str) -> bool:
+        """Change the user's email address."""
+        if not self.authenticate_user(username, password):
+            return False
+            
+        with get_pool().connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    'UPDATE users SET email = %s WHERE username = %s',
+                    (new_email, username)
+                )
+                if cur.rowcount > 0:
+                    conn.commit()
+                    return True
+        return False
 
     def change_username(self, old_username: str, new_username: str, password: str) -> bool:
         """Change the username after verifying the password."""
@@ -100,5 +122,15 @@ class AuthService:
                     conn.commit()
                     return True
         return False
+
+    def get_all_alert_emails(self) -> list[str]:
+        """Get all configured alert emails."""
+        emails = []
+        with get_pool().connection() as conn:
+            with conn.cursor() as cur:
+                rows = cur.execute('SELECT email FROM users WHERE email IS NOT NULL AND email != \'\'').fetchall()
+                for row in rows:
+                    emails.append(row[0])
+        return emails
 
 auth_service = AuthService()

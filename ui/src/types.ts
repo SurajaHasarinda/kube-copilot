@@ -11,6 +11,7 @@ export interface TokenResponse {
 export interface UserInfo {
     id: string;
     username: string;
+    email?: string | null;
     created_at: string;
 }
 

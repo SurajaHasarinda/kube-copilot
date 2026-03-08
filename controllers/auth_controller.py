@@ -38,7 +38,7 @@ async def get_token(request: TokenRequest):
 
 from fastapi import Depends
 from config.auth import verify_jwt_token
-from config.schemas import ChangePasswordRequest, ChangeUsernameRequest, UserInfoResponse
+from config.schemas import ChangePasswordRequest, ChangeUsernameRequest, ChangeEmailRequest, UserInfoResponse
 
 @router.get("/me", response_model=UserInfoResponse)
 async def get_current_user(token_payload: dict = Depends(verify_jwt_token)):
@@ -126,3 +126,31 @@ async def change_username(
         "access_token": new_token,
         "expires_in_minutes": JWT_ACCESS_TOKEN_EXPIRE_MINUTES,
     }
+
+
+@router.post("/change-email")
+async def change_email(
+    request: ChangeEmailRequest,
+    token_payload: dict = Depends(verify_jwt_token)
+):
+    """
+    Change the email address for the currently authenticated user.
+    """
+    username = token_payload.get("sub")
+    if not username:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload.",
+        )
+    
+    success = auth_service.change_email(
+        username, request.new_email, request.password
+    )
+    
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid password.",
+        )
+    
+    return {"message": "Email updated successfully."}

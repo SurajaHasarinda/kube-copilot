@@ -1,24 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Lock, User, CheckCircle, AlertCircle } from 'lucide-react';
+import { Settings, Lock, User, CheckCircle, AlertCircle, Mail } from 'lucide-react';
 import { api } from '../api';
 import { UserInfo } from '../types';
 
 const SettingsPage: React.FC = () => {
     const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
     const [loadingUserInfo, setLoadingUserInfo] = useState(true);
-    
+
     // Username change state
     const [newUsername, setNewUsername] = useState('');
     const [usernamePassword, setUsernamePassword] = useState('');
     const [usernameLoading, setUsernameLoading] = useState(false);
     const [usernameMessage, setUsernameMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-    
+
     // Password change state
     const [currentPassword, setCurrentPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [passwordLoading, setPasswordLoading] = useState(false);
     const [passwordMessage, setPasswordMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
+    // Alert Email change state
+    const [newEmail, setNewEmail] = useState('');
+    const [emailPassword, setEmailPassword] = useState('');
+    const [emailLoading, setEmailLoading] = useState(false);
+    const [emailMessage, setEmailMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
     useEffect(() => {
         loadUserInfo();
@@ -30,6 +36,7 @@ const SettingsPage: React.FC = () => {
         if (info) {
             setUserInfo(info);
             setNewUsername(info.username);
+            setNewEmail(info.email || '');
         }
         setLoadingUserInfo(false);
     };
@@ -64,6 +71,33 @@ const SettingsPage: React.FC = () => {
             setUsernameMessage({ type: 'error', text: 'An error occurred while changing the username.' });
         } finally {
             setUsernameLoading(false);
+        }
+    };
+
+    const handleEmailChange = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setEmailMessage(null);
+
+        // Validation
+        if (newEmail.length < 3 || !newEmail.includes('@')) {
+            setEmailMessage({ type: 'error', text: 'Please enter a valid email address.' });
+            return;
+        }
+
+        setEmailLoading(true);
+        try {
+            const success = await api.changeEmail(newEmail, emailPassword);
+            if (success) {
+                setEmailMessage({ type: 'success', text: 'Email converted successfully! Critical anomalies will now be sent here.' });
+                setEmailPassword('');
+                await loadUserInfo();
+            } else {
+                setEmailMessage({ type: 'error', text: 'Failed to update email. Please check your password.' });
+            }
+        } catch (error) {
+            setEmailMessage({ type: 'error', text: 'An error occurred while changing the email.' });
+        } finally {
+            setEmailLoading(false);
         }
     };
 
@@ -178,11 +212,10 @@ const SettingsPage: React.FC = () => {
                             {/* Message Display */}
                             {usernameMessage && (
                                 <div
-                                    className={`flex items-center gap-2 p-4 rounded-md ${
-                                        usernameMessage.type === 'success'
+                                    className={`flex items-center gap-2 p-4 rounded-md ${usernameMessage.type === 'success'
                                             ? 'bg-green-900/20 border border-green-700 text-green-400'
                                             : 'bg-red-900/20 border border-red-700 text-red-400'
-                                    }`}
+                                        }`}
                                 >
                                     {usernameMessage.type === 'success' ? (
                                         <CheckCircle size={20} />
@@ -199,6 +232,87 @@ const SettingsPage: React.FC = () => {
                                 className="w-full md:w-auto px-6 py-2 bg-brand hover:bg-brand-dark text-white font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {usernameLoading ? 'Updating...' : 'Update Username'}
+                            </button>
+                        </form>
+                    </div>
+
+                    {/* Change Email Section */}
+                    <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
+                        <div className="flex items-center gap-2 mb-4">
+                            <Mail className="text-brand" size={20} />
+                            <h2 className="text-xl font-semibold text-slate-100">Alert Email Address</h2>
+                        </div>
+                        <p className="text-slate-400 mb-6">
+                            Set an email address where you will instantly receive reports if KubeCopilot detects a critical cluster anomaly.
+                        </p>
+
+                        <form onSubmit={handleEmailChange} className="space-y-4">
+                            <div>
+                                <label htmlFor="current-email" className="block text-sm font-medium text-slate-300 mb-2">
+                                    Current Alert Email
+                                </label>
+                                <input
+                                    id="current-email"
+                                    type="text"
+                                    value={userInfo?.email || 'Not configured'}
+                                    disabled
+                                    className="w-full px-4 py-2 bg-slate-900/50 border border-slate-600 rounded-md text-slate-400 cursor-not-allowed"
+                                />
+                            </div>
+
+                            <div>
+                                <label htmlFor="new-email" className="block text-sm font-medium text-slate-300 mb-2">
+                                    New Alert Email
+                                </label>
+                                <input
+                                    id="new-email"
+                                    type="email"
+                                    value={newEmail}
+                                    onChange={(e) => setNewEmail(e.target.value)}
+                                    className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-md text-slate-100 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
+                                    placeholder="yourname@company.com"
+                                    required
+                                />
+                            </div>
+
+                            <div>
+                                <label htmlFor="email-password" className="block text-sm font-medium text-slate-300 mb-2">
+                                    Current Password (for verification)
+                                </label>
+                                <input
+                                    id="email-password"
+                                    type="password"
+                                    value={emailPassword}
+                                    onChange={(e) => setEmailPassword(e.target.value)}
+                                    className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-md text-slate-100 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
+                                    placeholder="Enter your password"
+                                    required
+                                />
+                            </div>
+
+                            {/* Message Display */}
+                            {emailMessage && (
+                                <div
+                                    className={`flex items-center gap-2 p-4 rounded-md ${emailMessage.type === 'success'
+                                            ? 'bg-green-900/20 border border-green-700 text-green-400'
+                                            : 'bg-red-900/20 border border-red-700 text-red-400'
+                                        }`}
+                                >
+                                    {emailMessage.type === 'success' ? (
+                                        <CheckCircle size={20} />
+                                    ) : (
+                                        <AlertCircle size={20} />
+                                    )}
+                                    <span>{emailMessage.text}</span>
+                                </div>
+                            )}
+
+                            <button
+                                type="submit"
+                                disabled={emailLoading}
+                                className="w-full md:w-auto px-6 py-2 bg-brand hover:bg-brand-dark text-white font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {emailLoading ? 'Updating Email...' : 'Update Alert Email'}
                             </button>
                         </form>
                     </div>
@@ -264,11 +378,10 @@ const SettingsPage: React.FC = () => {
                             {/* Message Display */}
                             {passwordMessage && (
                                 <div
-                                    className={`flex items-center gap-2 p-4 rounded-md ${
-                                        passwordMessage.type === 'success'
+                                    className={`flex items-center gap-2 p-4 rounded-md ${passwordMessage.type === 'success'
                                             ? 'bg-green-900/20 border border-green-700 text-green-400'
                                             : 'bg-red-900/20 border border-red-700 text-red-400'
-                                    }`}
+                                        }`}
                                 >
                                     {passwordMessage.type === 'success' ? (
                                         <CheckCircle size={20} />
