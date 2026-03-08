@@ -416,8 +416,12 @@ const ClusterAnomaliesPage: React.FC = () => {
                             }}
                             className={`text-left bg-slate-800/40 backdrop-blur-sm rounded-xl p-3.5 transition-all duration-200 group hover:bg-slate-800/60 cursor-pointer`}
                             style={{
-                                borderWidth: isActive ? '2px' : '1px',
-                                borderColor: isActive ? s.accent : 'rgba(51,65,85,0.4)',
+                                borderTopWidth: isActive ? '2px' : '1px',
+                                borderRightWidth: isActive ? '2px' : '1px',
+                                borderBottomWidth: isActive ? '2px' : '1px',
+                                borderTopColor: isActive ? s.accent : 'rgba(51,65,85,0.4)',
+                                borderRightColor: isActive ? s.accent : 'rgba(51,65,85,0.4)',
+                                borderBottomColor: isActive ? s.accent : 'rgba(51,65,85,0.4)',
                                 borderLeftWidth: '3px',
                                 borderLeftColor: s.accent,
                                 boxShadow: isActive ? `0 0 12px ${s.accent}20` : 'none',
