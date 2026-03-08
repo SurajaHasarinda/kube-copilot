@@ -17,6 +17,10 @@ from k8s_tools.executor import (
     restart_deployment as _restart_deployment,
     scale_deployment as _scale_deployment,
 )
+import json
+from services.cluster_monitor_service import ClusterMonitorService
+
+cluster_monitor = ClusterMonitorService()
 
 
 # ── Read-Only Tools ──────────────────────────────────────────────────────────
@@ -71,6 +75,23 @@ def describe_resource(namespace: str, resource_type: str, name: str) -> str:
 
 # ── Write Tools (require human approval) ─────────────────────────────────────
 
+@tool
+def get_cluster_anomaly(anomaly_id: int) -> str:
+    """
+    Retrieve full details and logs for a specific cluster anomaly.
+
+    Args:
+        anomaly_id: The numeric ID of the anomaly (e.g. from an @anomaly/X mention).
+
+    Returns:
+        JSON string containing the anomaly details and associated pod logs, or an error message.
+    """
+    anomaly = cluster_monitor.get_anomaly_by_id(anomaly_id)
+    if not anomaly:
+        return f"Anomaly ID {anomaly_id} not found."
+    return json.dumps(anomaly, default=str)
+
+
 WRITE_TOOL_NAMES = {"restart_deployment", "scale_deployment"}
 
 
@@ -110,4 +131,4 @@ def scale_deployment(
 
 
 # All tools that the LLM can call
-ALL_TOOLS = [list_resources, get_pod_logs, describe_resource, restart_deployment, scale_deployment]
+ALL_TOOLS = [list_resources, get_pod_logs, describe_resource, get_cluster_anomaly, restart_deployment, scale_deployment]
