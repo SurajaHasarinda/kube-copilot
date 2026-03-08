@@ -70,3 +70,45 @@ export interface HealthResponse {
     k8s_connected: boolean;
     active_sessions: number;
 }
+
+export interface Anomaly {
+    id: number;
+    timestamp: string;
+    severity: string;
+    category: string;
+    namespace: string;
+    resource_type: string;
+    resource_name: string;
+    message: string;
+    details: string;
+    logs: string;
+    node_name: string;
+    resolved: boolean;
+}
+
+export interface AnomalyStats {
+    critical: number;
+    errors: number;
+    warnings: number;
+    resolved: number;
+    total: number;
+}
+
+export interface ClusterNode {
+    name: string;
+    type: string;
+    children?: ClusterNode[];
+    status?: string;
+    replicas?: string;
+    available?: number;
+    ip?: string;
+    node?: string;
+    restarts?: number;
+    cluster_ip?: string;
+    service_type?: string;
+    ports?: string[];
+    data_keys?: string[];
+    secret_type?: string;
+    count?: number;
+    created_at?: string;
+}
