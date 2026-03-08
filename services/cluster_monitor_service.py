@@ -366,9 +366,9 @@ class ClusterMonitorService:
             if event.type != "Warning":
                 continue
 
-            # Skip events that are older than 15 minutes so they don't artificially keep anomalies active
+            # Skip events that are older than 2 minutes so they don't artificially keep anomalies active
             event_time = event.last_timestamp or event.event_time or event.metadata.creation_timestamp
-            if event_time and (datetime.now(timezone.utc) - event_time).total_seconds() > 900:
+            if event_time and (datetime.now(timezone.utc) - event_time).total_seconds() > 120:
                 continue
 
             resource_name = event.involved_object.name or "unknown"

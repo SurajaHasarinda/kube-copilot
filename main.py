@@ -44,6 +44,27 @@ async def lifespan(application: FastAPI):
     from agent.graph import build_graph
     agent_graph = build_graph()
     print("✅ Agent graph compiled and ready.")
+
+    # Start the periodic anomaly scanner in the background
+    import threading
+    import time
+    from services.cluster_monitor_service import cluster_monitor_service
+
+    def run_periodic_scan():
+        print("🚀 Background anomaly scanner started.")
+        while True:
+            try:
+                # Run a full cluster scan
+                cluster_monitor_service.scan_cluster()
+            except Exception as e:
+                print(f"❌ Background scan error: {e}")
+            
+            # Wait for 5 minutes before next scan
+            time.sleep(300)
+
+    scanner_thread = threading.Thread(target=run_periodic_scan, daemon=True)
+    scanner_thread.start()
+
     yield
     print("👋 Server shutting down.")
 

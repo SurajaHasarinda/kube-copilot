@@ -34,7 +34,6 @@ function App() {
     return (
         <HashRouter>
             <Routes>
-                {/* Example Unprotected Route */}
                 <Route path="/login" element={
                     !isAuthenticated ? <LoginPage onLogin={() => setIsAuthenticated(true)} /> : <Navigate to="/" replace />
                 } />
@@ -79,7 +78,6 @@ function App() {
                     </ProtectedRoute>
                 } />
 
-                {/* Example fallback route */}
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
         </HashRouter>

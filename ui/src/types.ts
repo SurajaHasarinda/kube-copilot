@@ -1,5 +1,5 @@
 /**
- * KubeCopilot Frontend Types
+ * KubeCopilot Types
  */
 
 export interface TokenResponse {
