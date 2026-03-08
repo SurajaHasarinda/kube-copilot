@@ -14,10 +14,9 @@ Each anomaly is persisted to the database with timestamp, details, and associate
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
-import psycopg
 from psycopg.rows import dict_row
 
-from config.settings import POSTGRES_URL
+from config.database import get_pool
 from k8s_tools.client import core_v1_client, apps_v1_client, ApiException
 
 from services.email_service import send_critical_anomaly_email
@@ -28,8 +27,8 @@ from services.auth_service import auth_service
 
 def _ensure_anomalies_table():
     """Create the anomalies table if it does not exist."""
-    conn = psycopg.connect(POSTGRES_URL, row_factory=dict_row)
-    try:
+    with get_pool().connection() as conn:
+        conn.autocommit = False
         with conn.cursor() as cur:
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS cluster_anomalies (
@@ -52,8 +51,6 @@ def _ensure_anomalies_table():
                 ON cluster_anomalies (namespace, resource_name, category, timestamp)
             """)
             conn.commit()
-    finally:
-        conn.close()
 
 
 def _save_anomaly(cur, anomaly: dict) -> int:
@@ -112,14 +109,14 @@ def _check_duplicate(cur, namespace: str, resource_name: str, category: str, wit
 
 # ── Pod log fetcher ──────────────────────────────────────────────────────────
 
-def _fetch_pod_logs(namespace: str, pod_name: str, tail_lines: int = 50) -> str:
+def _fetch_pod_logs(namespace: str, pod_name: str, tail_lines: int = 20) -> str:
     """Fetch the last N lines of logs from a pod."""
     try:
         logs = core_v1_client.read_namespaced_pod_log(
             name=pod_name,
             namespace=namespace,
             tail_lines=tail_lines,
-            _request_timeout=5,  # 5s timeout to avoid hanging
+            _request_timeout=2,  # 2s timeout to avoid hanging
         )
         return logs or ""
     except ApiException:
@@ -165,9 +162,9 @@ class ClusterMonitorService:
             return new_anomalies
 
         # Use a single connection for the entire scan
-        conn = psycopg.connect(POSTGRES_URL, row_factory=dict_row)
-        try:
-            with conn.cursor() as cur:
+        with get_pool().connection() as conn:
+            conn.autocommit = False
+            with conn.cursor(row_factory=dict_row) as cur:
                 for ns in namespaces:
                     ns_name = ns.metadata.name
 
@@ -190,8 +187,6 @@ class ClusterMonitorService:
                         cur.execute("UPDATE cluster_anomalies SET resolved = TRUE WHERE id = %s", (row["id"],))
 
                 conn.commit()
-        finally:
-            conn.close()
 
         return new_anomalies
 
@@ -408,9 +403,8 @@ class ClusterMonitorService:
         limit: int = 50,
     ) -> list[dict]:
         """Retrieve anomaly records, newest first. Excludes full logs for speed."""
-        conn = psycopg.connect(POSTGRES_URL, row_factory=dict_row)
-        try:
-            with conn.cursor() as cur:
+        with get_pool().connection() as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
                 # Select everything except logs for the list view (much faster)
                 query = """SELECT id, timestamp, severity, category, namespace,
                            resource_type, resource_name, message, details,
@@ -436,24 +430,19 @@ class ClusterMonitorService:
                 cur.execute(query, params)
                 rows = cur.fetchall()
                 return [dict(r) for r in rows]
-        finally:
-            conn.close()
 
     def get_anomaly_by_id(self, anomaly_id: int) -> Optional[dict]:
         """Retrieve a single anomaly by ID, including full logs."""
-        conn = psycopg.connect(POSTGRES_URL, row_factory=dict_row)
-        try:
-            with conn.cursor() as cur:
+        with get_pool().connection() as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
                 cur.execute("SELECT * FROM cluster_anomalies WHERE id = %s", (anomaly_id,))
                 row = cur.fetchone()
                 return dict(row) if row else None
-        finally:
-            conn.close()
 
     def resolve_anomaly(self, anomaly_id: int) -> bool:
         """Mark an anomaly as resolved."""
-        conn = psycopg.connect(POSTGRES_URL, row_factory=dict_row)
-        try:
+        with get_pool().connection() as conn:
+            conn.autocommit = False
             with conn.cursor() as cur:
                 cur.execute(
                     "UPDATE cluster_anomalies SET resolved = TRUE WHERE id = %s",
@@ -461,25 +450,20 @@ class ClusterMonitorService:
                 )
                 conn.commit()
                 return cur.rowcount > 0
-        finally:
-            conn.close()
 
     def clear_resolved(self) -> int:
         """Delete all resolved anomalies. Returns count deleted."""
-        conn = psycopg.connect(POSTGRES_URL, row_factory=dict_row)
-        try:
+        with get_pool().connection() as conn:
+            conn.autocommit = False
             with conn.cursor() as cur:
                 cur.execute("DELETE FROM cluster_anomalies WHERE resolved = TRUE")
                 conn.commit()
                 return cur.rowcount
-        finally:
-            conn.close()
 
     def get_anomaly_stats(self) -> dict:
         """Get counts by severity and category."""
-        conn = psycopg.connect(POSTGRES_URL, row_factory=dict_row)
-        try:
-            with conn.cursor() as cur:
+        with get_pool().connection() as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
                 cur.execute("""
                     SELECT 
                         COUNT(*) FILTER (WHERE severity = 'critical' AND NOT resolved) AS critical,
@@ -493,8 +477,6 @@ class ClusterMonitorService:
                 return dict(row) if row else {
                     "critical": 0, "errors": 0, "warnings": 0, "resolved": 0, "total": 0
                 }
-        finally:
-            conn.close()
 
 
 # Module-level singleton
