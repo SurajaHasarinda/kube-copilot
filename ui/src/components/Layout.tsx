@@ -11,7 +11,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     return (
         <div className="min-h-screen bg-slate-900 text-slate-200 flex flex-col md:flex-row">
             {/* Sidebar / Navigation */}
-            <aside className="w-full md:w-64 bg-slate-800 border-b md:border-r border-slate-700 p-2 md:p-4 shrink-0 flex flex-col relative z-20 shadow-md md:shadow-none">
+            <aside className="w-full md:w-64 bg-slate-800 border-b md:border-r border-slate-700 p-2 md:p-4 shrink-0 flex flex-col sticky top-0 md:h-screen z-20 shadow-md md:shadow-none">
                 <div className="flex items-center justify-between mb-2 md:mb-8 px-2 md:mt-4">
                     <div className="flex items-center gap-2">
                         <img src="/kube-copilot.svg" alt="KubeCopilot Logo" className="w-6 h-6 md:w-8 md:h-8 drop-shadow-md" />
