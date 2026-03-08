@@ -99,6 +99,7 @@ const HomePage: React.FC = () => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
+    const [fetchingHistory, setFetchingHistory] = useState(false);
     const [sessionId, setSessionId] = useState('');
     const [searchParams] = useSearchParams();
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -149,6 +150,7 @@ const HomePage: React.FC = () => {
         if (querySessionId && querySessionId !== sessionId) {
             setSessionId(querySessionId);
             setLoading(true);
+            setFetchingHistory(true);
             api.getSessionHistory(querySessionId).then(res => {
                 setMessages(res.messages.map(m => ({
                     role: m.role as 'human' | 'agent',
@@ -159,6 +161,7 @@ const HomePage: React.FC = () => {
                 setMessages([{ role: 'agent', content: '❌ Failed to load session history.' }]);
             }).finally(() => {
                 setLoading(false);
+                setFetchingHistory(false);
             });
         }
     }, [searchParams, sessionId]);
@@ -362,15 +365,22 @@ const HomePage: React.FC = () => {
                         </div>
                     </div>
                 ))}
-                {loading && (
-                    <div className="flex gap-3">
-                        <div className="shrink-0 w-8 h-8 rounded-full bg-brand/20 text-brand flex items-center justify-center">
+                {loading && !fetchingHistory && (
+                    <div className="flex gap-3 animate-fade-in">
+                        <div className="shrink-0 w-8 h-8 rounded-full bg-brand/20 text-brand flex items-center justify-center shadow-lg shadow-brand/10">
                             <img src="/kube-copilot.svg" alt="Avatar" className="w-4 h-4" />
                         </div>
-                        <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-3 flex items-center gap-2">
+                        <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-3 flex items-center gap-2 shadow-md">
                             <div className="w-2 h-2 rounded-full bg-brand animate-ping"></div>
-                            <span className="text-sm text-slate-400">Agent is thinking...</span>
+                            <span className="text-sm text-slate-400 font-medium tracking-wide">Agent is thinking...</span>
                         </div>
+                    </div>
+                )}
+
+                {fetchingHistory && (
+                    <div className="flex flex-col items-center justify-center p-8 gap-3 opacity-50">
+                        <span className="text-brand w-5 h-5 border-2 border-brand/20 border-t-brand rounded-full animate-spin"></span>
+                        <span className="text-xs text-slate-500 font-medium">Loading session history...</span>
                     </div>
                 )}
                 <div ref={messagesEndRef} />
