@@ -167,7 +167,7 @@ const DetailPanel: React.FC<{ node: ClusterNode; onClose: () => void }> = ({ nod
     }
 
     return (
-        <div className="w-[420px] shrink-0 bg-slate-800/50 backdrop-blur-sm border-2 border-slate-700/50 rounded-xl flex flex-col overflow-hidden shadow-2xl animate-slide-in-right">
+        <div className="w-full lg:w-[420px] shrink-0 bg-slate-800/50 backdrop-blur-sm border-2 border-slate-700/50 rounded-xl flex flex-col shadow-2xl animate-slide-in-right">
             {/* Detail Header */}
             <div
                 className="p-5 border-b-2 border-slate-700/50 relative"
@@ -203,7 +203,7 @@ const DetailPanel: React.FC<{ node: ClusterNode; onClose: () => void }> = ({ nod
             </div>
 
             {/* Detail Body */}
-            <div className="flex-1 overflow-auto custom-scrollbar p-4 space-y-2">
+            <div className="flex-1 p-4 space-y-2">
                 {detailRows.length === 0 && childrenSummary.length === 0 && (
                     <div className="text-center py-12">
                         <Circle size={40} className="text-slate-600 mx-auto mb-4" />
@@ -441,7 +441,7 @@ const ClusterVisualizationPage: React.FC = () => {
     ];
 
     return (
-        <div className="p-6 md:p-8 h-full flex flex-col" id="cluster-visualization-page">
+        <div className="p-6 md:p-8 min-h-full flex flex-col" id="cluster-visualization-page">
             <style>{`
                 @keyframes slide-in-right {
                     from {
@@ -519,7 +519,7 @@ const ClusterVisualizationPage: React.FC = () => {
             {/* Main Content: Tree + Detail Panel */}
             <div className="flex-1 flex gap-4 min-h-0">
                 {/* Tree View */}
-                <div className={`transition-all duration-300 bg-slate-800/40 backdrop-blur-sm border border-slate-700/40 rounded-xl overflow-hidden flex flex-col min-w-0 ${selectedNode ? 'flex-1' : 'w-full'
+                <div className={`transition-all duration-300 bg-slate-800/40 backdrop-blur-sm border border-slate-700/40 rounded-xl flex flex-col min-w-0 ${selectedNode ? 'hidden lg:flex lg:flex-1' : 'w-full'
                     }`}>
                     {/* Search Bar */}
                     <div className="p-3 border-b border-slate-700/40 bg-slate-800/30">
@@ -550,7 +550,7 @@ const ClusterVisualizationPage: React.FC = () => {
                     </div>
 
                     {/* Tree Content */}
-                    <div className="flex-1 overflow-auto custom-scrollbar p-3">
+                    <div className="flex-1 p-3">
                         {loading && (
                             <div className="flex flex-col items-center justify-center h-full gap-3">
                                 <RefreshCw className="animate-spin text-brand" size={32} />

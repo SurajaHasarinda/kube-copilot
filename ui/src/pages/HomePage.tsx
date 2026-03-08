@@ -307,7 +307,7 @@ const HomePage: React.FC = () => {
     };
 
     return (
-        <div className="h-full flex flex-col p-4 md:p-6 mx-auto animate-slide-up bg-slate-900">
+        <div className="flex-1 flex flex-col p-4 md:p-6 w-full max-w-5xl mx-auto animate-slide-up bg-slate-900">
             {/* Header */}
             <div className="flex items-center justify-between pb-4 border-b border-slate-800">
                 <div>
@@ -319,7 +319,7 @@ const HomePage: React.FC = () => {
             </div>
 
             {/* Chat Area */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-4 py-4 pr-2">
+            <div className="flex-1 flex flex-col gap-4 py-4">
                 {messages.length === 0 && (
                     <div className="m-auto text-center text-slate-500 max-w-sm">
                         <img src="/kube-copilot.svg" alt="App Logo" className="w-12 h-12 mx-auto mb-4 opacity-30 grayscale" />
@@ -387,10 +387,10 @@ const HomePage: React.FC = () => {
             </div>
 
             {/* Input Area */}
-            <div className="pt-4 mt-auto relative">
+            <div className="pt-2 md:pt-4 mt-auto relative sticky bottom-0 bg-slate-900 pb-4 md:pb-2 z-10">
                 {/* Mention Popover */}
                 {mentionSearch !== null && (
-                    <div className="absolute bottom-full left-0 mb-2 w-80 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl overflow-hidden z-20 animate-slide-up">
+                    <div className="absolute bottom-full left-0 mb-2 w-full max-w-[calc(100vw-2rem)] sm:w-80 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl overflow-hidden z-20 animate-slide-up">
                         <div className="px-3 py-2 bg-slate-900/50 border-b border-slate-700/50 flex justify-between items-center">
                             <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Attach Context</span>
                             {mentionItems.length === 0 && <span className="text-[10px] text-brand animate-pulse">Loading data...</span>}

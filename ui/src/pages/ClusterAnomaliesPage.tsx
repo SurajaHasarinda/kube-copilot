@@ -119,7 +119,7 @@ const AnomalyDetail: React.FC<{
     const [logsExpanded, setLogsExpanded] = useState(true);
 
     return (
-        <div className="w-[460px] shrink-0 bg-slate-800/50 backdrop-blur-sm border-2 border-slate-700/50 rounded-xl flex flex-col overflow-hidden shadow-2xl animate-slide-in-right">
+        <div className="w-full lg:w-[460px] shrink-0 bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 lg:border-2 rounded-xl flex flex-col shadow-2xl animate-slide-in-right">
             {/* Header */}
             <div className={`p-5 border-b-2 border-slate-700/50 relative ${sevConfig.bg}`}>
                 <button
@@ -160,7 +160,7 @@ const AnomalyDetail: React.FC<{
             </div>
 
             {/* Body */}
-            <div className="flex-1 overflow-auto custom-scrollbar p-4 space-y-2">
+            <div className="flex-1 p-4 space-y-2">
                 {/* Message */}
                 <div className="px-4 py-3 rounded-xl bg-slate-900/50 border border-slate-700/50">
                     <span className="text-xs text-slate-500 uppercase tracking-wider block mb-1 font-medium">Message</span>
@@ -363,7 +363,7 @@ const ClusterAnomaliesPage: React.FC = () => {
     ];
 
     return (
-        <div className="p-6 md:p-8 h-full flex flex-col" id="cluster-anomalies-page">
+        <div className="p-6 md:p-8 min-h-full flex flex-col" id="cluster-anomalies-page">
             <style>{`
                 @keyframes slide-in-right {
                     from { opacity: 0; transform: translateX(30px); }
@@ -373,7 +373,7 @@ const ClusterAnomaliesPage: React.FC = () => {
             `}</style>
 
             {/* Header */}
-            <div className="mb-5 flex items-center justify-between">
+            <div className="mb-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <div className="flex items-center gap-3 mb-1.5">
                         <div className="p-2 rounded-xl bg-red-900/15 border border-red-500/20">
@@ -385,7 +385,7 @@ const ClusterAnomaliesPage: React.FC = () => {
                         </div>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 self-start md:self-auto">
                     <button
                         onClick={handleScan}
                         disabled={scanning}
@@ -443,9 +443,9 @@ const ClusterAnomaliesPage: React.FC = () => {
             </div>
 
             {/* Main Content */}
-            <div className="flex-1 flex gap-4 min-h-0">
+            <div className="flex-1 flex gap-4 min-h-0 relative">
                 {/* List */}
-                <div className={`transition-all duration-300 bg-slate-800/40 backdrop-blur-sm border border-slate-700/40 rounded-xl overflow-hidden flex flex-col min-w-0 ${selectedAnomaly ? 'flex-1' : 'w-full'
+                <div className={`transition-all duration-300 bg-slate-800/40 backdrop-blur-sm border border-slate-700/40 rounded-xl flex flex-col min-w-0 ${selectedAnomaly ? 'hidden lg:flex lg:flex-1' : 'w-full'
                     }`}>
                     {/* Search & Filter bar */}
                     <div className="p-3 border-b border-slate-700/40 bg-slate-800/30 flex items-center gap-3">
@@ -477,7 +477,7 @@ const ClusterAnomaliesPage: React.FC = () => {
                     </div>
 
                     {/* List content */}
-                    <div className="flex-1 overflow-auto custom-scrollbar p-3 space-y-1">
+                    <div className="flex-1 p-3 space-y-1">
                         {loading && (
                             <div className="flex flex-col items-center justify-center h-full gap-3">
                                 <RefreshCw className="animate-spin text-brand" size={32} />

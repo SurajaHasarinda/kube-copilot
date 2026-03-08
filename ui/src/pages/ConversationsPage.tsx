@@ -80,7 +80,7 @@ const ConversationsPage: React.FC = () => {
     };
 
     return (
-        <div className="p-6 md:p-8 animate-slide-up flex flex-col gap-6 max-w-7xl mx-auto h-full overflow-y-auto custom-scrollbar">
+        <div className="p-6 md:p-8 animate-slide-up flex flex-col gap-6 max-w-7xl mx-auto min-h-full w-full">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
