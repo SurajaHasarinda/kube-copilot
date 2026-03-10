@@ -3,7 +3,7 @@ KubeCopilot — API Server entry point.
 
 Usage:
     python main.py
-    python main.py --host 0.0.0.0 --port 8000
+    python main.py --host 0.0.0.0 --port 8321
 """
 
 import argparse
@@ -102,6 +102,17 @@ app.include_router(chat_controller.router)
 app.include_router(incident_controller.router)
 app.include_router(session_controller.router)
 app.include_router(cluster_controller.router)
+
+
+# ── Static Files (Frontend) ───────────────────────────────────────────────────
+
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
+
+# Serve frontend static files if available (for production/docker)
+static_dir = Path(__file__).parent / "static"
+if static_dir.exists():
+    app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
 
 
 # ── CLI launcher ──────────────────────────────────────────────────────────────

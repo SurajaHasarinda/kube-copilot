@@ -76,11 +76,11 @@ cp .env.example .env
 ### 3. Run the API Server
 
 ```bash
-python main.py                              # Default: 0.0.0.0:8000
+python main.py                              # Default: 0.0.0.0:8321
 python main.py --port 9000 --reload         # Dev mode with hot-reload
 ```
 
-API docs available at `http://localhost:8000/docs` (Swagger) and `/redoc`.
+API docs available at `http://localhost:8321/docs` (Swagger) and `/redoc`.
 
 ## Project Structure
 
@@ -144,13 +144,13 @@ KubeCopilot/
 
 ```bash
 # 1. Get a token
-TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/token \
+TOKEN=$(curl -s -X POST http://localhost:8321/api/v1/auth/token \
   -H "X-API-Key: your-api-key" \
   -H "Content-Type: application/json" \
   -d '{"client_name": "my-chat-ui"}' | jq -r '.access_token')
 
 # 2. Send a message
-curl -s -X POST http://localhost:8000/api/v1/chat \
+curl -s -X POST http://localhost:8321/api/v1/chat \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"message": "What pods are running?", "namespace": "default"}'
@@ -161,7 +161,7 @@ curl -s -X POST http://localhost:8000/api/v1/chat \
 # Response: { "session_id": "abc123", "type": "approval_required", "approval_info": {...} }
 
 # 4. Approve or deny
-curl -s -X POST http://localhost:8000/api/v1/chat/approve \
+curl -s -X POST http://localhost:8321/api/v1/chat/approve \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"session_id": "abc123", "approved": true}'

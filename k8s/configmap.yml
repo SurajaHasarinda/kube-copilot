@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kube-copilot-config
+  namespace: kube-copilot
+data:
+  # Base Settings
+  API_HOST: "0.0.0.0"
+  API_PORT: "8321"
+  GEMINI_MODEL: "gemini-3.0-flash"
+  DEFAULT_NAMESPACE: "default"
+  
+  # CORS
+  CORS_ORIGINS: "http://localhost:3000,http://localhost:5173,http://localhost:8321"
