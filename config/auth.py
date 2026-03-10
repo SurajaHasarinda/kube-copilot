@@ -57,3 +57,26 @@ def verify_jwt_token(
             detail="Invalid or expired token.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+def get_current_user(token_payload: dict = Security(verify_jwt_token)) -> dict:
+    """
+    FastAPI dependency that returns the current authenticated user's dictionary.
+    Useful for requiring authentication on any route.
+    """
+    from services.auth_service import auth_service
+    username = token_payload.get("sub")
+    if not username:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload.",
+        )
+    
+    user_info = auth_service.get_user_info(username)
+    if not user_info:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found.",
+        )
+    
+    return user_info

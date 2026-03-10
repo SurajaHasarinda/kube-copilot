@@ -31,29 +31,15 @@ async def get_token(request: TokenRequest):
 
 
 from fastapi import Depends
-from config.auth import verify_jwt_token
+from config.auth import verify_jwt_token, get_current_user
 from config.schemas import ChangePasswordRequest, ChangeUsernameRequest, ChangeEmailRequest, UserInfoResponse, ChangeNotificationsRequest
-
+ 
 @router.get("/me", response_model=UserInfoResponse)
-async def get_current_user(token_payload: dict = Depends(verify_jwt_token)):
+async def read_users_me(current_user: dict = Depends(get_current_user)):
     """
     Get the current authenticated user's information.
     """
-    username = token_payload.get("sub")
-    if not username:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token payload.",
-        )
-    
-    user_info = auth_service.get_user_info(username)
-    if not user_info:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found.",
-        )
-    
-    return UserInfoResponse(**user_info)
+    return UserInfoResponse(**current_user)
 
 
 @router.post("/change-password")

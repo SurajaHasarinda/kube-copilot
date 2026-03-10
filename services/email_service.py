@@ -1,12 +1,13 @@
 import smtplib
 from email.message import EmailMessage
 import os
+from config import settings
 
-SMTP_SERVER = os.getenv("SMTP_SERVER", "localhost")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "1025"))
-SMTP_USER = os.getenv("SMTP_USER", "")
-SMTP_PASS = os.getenv("SMTP_PASS", "")
-FROM_EMAIL = os.getenv("FROM_EMAIL", "alerts@kube-copilot.local")
+SMTP_SERVER = settings.SMTP_SERVER
+SMTP_PORT = settings.SMTP_PORT
+SMTP_USER = settings.SMTP_USER
+SMTP_PASS = settings.SMTP_PASS
+FROM_EMAIL = settings.FROM_EMAIL
 
 def send_critical_anomaly_email(to_email: str, anomaly: dict):
     """

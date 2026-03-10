@@ -44,7 +44,6 @@ class AuthService:
                         'INSERT INTO users (id, username, password_hash, created_at) VALUES (%s, %s, %s, %s)',
                         (user_id, ADMIN_USERNAME, hashed_password, created_at)
                     )
-            conn.commit()
 
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         if not plain_password or not hashed_password:
