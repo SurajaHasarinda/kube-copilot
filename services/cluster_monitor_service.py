@@ -79,16 +79,15 @@ def _save_anomaly(cur, anomaly: dict) -> int:
     return anomaly_id
 
 
-def _check_duplicate(cur, namespace: str, resource_name: str, category: str, within_minutes: int = 30) -> bool:
-    """Check if a similar anomaly was recorded within the last N minutes (reuses cursor)."""
-    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=within_minutes)).isoformat()
+def _check_duplicate(cur, namespace: str, resource_name: str, category: str) -> bool:
+    """Check if an unresolved anomaly already exists for this resource and category (reuses cursor)."""
     cur.execute(
         """
         SELECT COUNT(*) AS cnt FROM cluster_anomalies
         WHERE namespace = %s AND resource_name = %s AND category = %s
-        AND timestamp > %s
+        AND resolved = FALSE
         """,
-        (namespace, resource_name, category, cutoff),
+        (namespace, resource_name, category),
     )
     row = cur.fetchone()
     return (row["cnt"] if row else 0) > 0
