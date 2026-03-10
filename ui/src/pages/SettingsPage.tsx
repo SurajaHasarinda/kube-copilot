@@ -281,18 +281,14 @@ const SettingsPage: React.FC = () => {
                         </div>
 
                         <div className="space-y-1">
-                            <label htmlFor="gemini-model" className="block text-sm font-medium text-slate-300 ml-1">Gemini Model</label>
-                            <select
+                            <FormField
                                 id="gemini-model"
+                                label="Gemini Model"
                                 value={geminiModel}
                                 onChange={e => setGeminiModel(e.target.value)}
-                                className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-md text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand/50 focus:border-brand transition-all appearance-none cursor-pointer"
-                            >
-                                <option value="gemini-3.0-flash">Gemini 2.0 Flash (Recommended - Fastest)</option>
-                                <option value="gemini-3.0-pro">Gemini 2.0 Pro (Most Capable)</option>
-                                <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
-                                <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
-                            </select>
+                                placeholder="e.g. gemini-2.0-flash"
+                                required
+                            />
                         </div>
 
                         <StatusMessage message={aiSettingsMessage} />
