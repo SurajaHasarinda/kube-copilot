@@ -42,6 +42,7 @@ from agent.state import AgentState
 from agent.tools import ALL_TOOLS, WRITE_TOOL_NAMES
 from agent.prompts import SYSTEM_PROMPT
 from persistence.memory import save_incident
+from persistence.settings import get_setting
 
 
 # Build a lookup: tool_name → callable
@@ -49,9 +50,6 @@ tool_map = {t.name: t for t in ALL_TOOLS}
 
 
 # ── Graph Nodes ──────────────────────────────────────────────────────────────
-
-_llm_with_tools = None
-
 
 def agent_node(state: AgentState) -> dict:
     """
@@ -62,7 +60,28 @@ def agent_node(state: AgentState) -> dict:
         content=SYSTEM_PROMPT.format(namespace=state["current_namespace"])
     )
     messages = [sys_msg] + state["messages"]
-    response = _llm_with_tools.invoke(messages)
+
+    api_key = get_setting("GOOGLE_API_KEY", GOOGLE_API_KEY)
+    model_name = get_setting("GEMINI_MODEL", GEMINI_MODEL)
+
+    if not api_key or api_key == "setup-in-ui":
+        from langchain_core.messages import AIMessage
+        return {"messages": [AIMessage(content="Hello! It seems the Gemini API key is not configured. Please configure it in the Settings page to start chatting.")]}
+
+    llm = ChatGoogleGenerativeAI(
+        model=model_name,
+        google_api_key=api_key,
+        temperature=0.1,
+        convert_system_message_to_human=True,
+    )
+    llm_with_tools = llm.bind_tools(ALL_TOOLS)
+
+    try:
+        response = llm_with_tools.invoke(messages)
+    except Exception as e:
+        from langchain_core.messages import AIMessage
+        return {"messages": [AIMessage(content=f"Error connecting to AI Provider: {str(e)}")]}
+
     return {"messages": [response]}
 
 
@@ -228,16 +247,6 @@ def build_graph(checkpointer=None):
     Returns:
         A compiled LangGraph graph.
     """
-    global _llm_with_tools
-
-    llm = ChatGoogleGenerativeAI(
-        model=GEMINI_MODEL,
-        google_api_key=GOOGLE_API_KEY,
-        temperature=0.1,
-        convert_system_message_to_human=True,
-    )
-    _llm_with_tools = llm.bind_tools(ALL_TOOLS)
-
     if checkpointer is None:
         checkpointer = PostgresSaver(get_pool())
         checkpointer.setup()

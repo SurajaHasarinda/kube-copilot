@@ -213,4 +213,27 @@ export const api = {
             return { critical: 0, errors: 0, warnings: 0, resolved: 0, total: 0 };
         }
     },
+
+    getAISettings: async (): Promise<{ google_api_key_configured: boolean, gemini_model: string }> => {
+        try {
+            const response = await apiClient.get('/settings');
+            return response.data;
+        } catch (error) {
+            console.error('Fetch AI settings error:', error);
+            return { google_api_key_configured: false, gemini_model: 'gemini-3.0-flash' };
+        }
+    },
+
+    updateAISettings: async (apiKey?: string, model?: string): Promise<boolean> => {
+        try {
+            const payload: any = {};
+            if (apiKey) payload.google_api_key = apiKey;
+            if (model) payload.gemini_model = model;
+            await apiClient.post('/settings', payload);
+            return true;
+        } catch (error) {
+            console.error('Update AI settings error:', error);
+            return false;
+        }
+    },
 };

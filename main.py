@@ -22,6 +22,7 @@ from controllers import (
     session_controller,
     health_controller,
     cluster_controller,
+    settings_controller,
 )
 
 # ── Module-level graph reference (set during lifespan) ────────────────────────
@@ -35,11 +36,6 @@ async def lifespan(application: FastAPI):
     Shutdown: cleanup (currently a no-op).
     """
     global agent_graph
-
-    if not GOOGLE_API_KEY:
-        raise RuntimeError(
-            "GOOGLE_API_KEY is not set. Copy .env.example to .env and configure it."
-        )
 
     from agent.graph import build_graph
     agent_graph = build_graph()
@@ -97,6 +93,7 @@ app.add_middleware(
 # ── Register controllers ─────────────────────────────────────────────────────
 
 app.include_router(health_controller.router)
+app.include_router(settings_controller.router)
 app.include_router(auth_controller.router)
 app.include_router(chat_controller.router)
 app.include_router(incident_controller.router)

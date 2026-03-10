@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Lock, User, Mail, Bell } from 'lucide-react';
+import { Settings, Lock, User, Mail, Bell, Shield, Cpu } from 'lucide-react';
 import { api } from '../api';
 import { UserInfo } from '../types';
 import FormField from '../components/FormField';
@@ -31,9 +31,19 @@ const SettingsPage: React.FC = () => {
     const [emailLoading, setEmailLoading] = useState(false);
     const [emailMessage, setEmailMessage] = useState<FormMessage>(null);
 
+    const [googleApiKey, setGoogleApiKey] = useState('');
+    const [geminiModel, setGeminiModel] = useState('gemini-3.0-flash');
+    const [isApiKeySet, setIsApiKeySet] = useState(false);
+    const [aiSettingsLoading, setAiSettingsLoading] = useState(false);
+    const [aiSettingsMessage, setAiSettingsMessage] = useState<FormMessage>(null);
+
     const loadUserInfo = async () => {
         setLoadingUserInfo(true);
-        const info = await api.getUserInfo();
+        const [info, aiSettings] = await Promise.all([
+            api.getUserInfo(),
+            api.getAISettings()
+        ]);
+
         if (info) {
             setUserInfo(info);
             setNewUsername(info.username);
@@ -41,6 +51,11 @@ const SettingsPage: React.FC = () => {
             if (info.notifications_enabled !== undefined) {
                 setNotificationsEnabled(info.notifications_enabled);
             }
+        }
+
+        if (aiSettings) {
+            setIsApiKeySet(aiSettings.google_api_key_configured);
+            setGeminiModel(aiSettings.gemini_model);
         }
         setLoadingUserInfo(false);
     };
@@ -136,6 +151,29 @@ const SettingsPage: React.FC = () => {
         }
     };
 
+    const handleAiSettingsChange = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setAiSettingsMessage(null);
+        setAiSettingsLoading(true);
+        try {
+            const success = await api.updateAISettings(
+                googleApiKey || undefined,
+                geminiModel
+            );
+            if (success) {
+                setAiSettingsMessage({ type: 'success', text: 'AI settings updated successfully!' });
+                setGoogleApiKey('');
+                if (googleApiKey) setIsApiKeySet(true);
+            } else {
+                setAiSettingsMessage({ type: 'error', text: 'Failed to update AI settings.' });
+            }
+        } catch {
+            setAiSettingsMessage({ type: 'error', text: 'An error occurred while updating AI settings.' });
+        } finally {
+            setAiSettingsLoading(false);
+        }
+    };
+
     if (loadingUserInfo) {
         return <div className="p-6 md:p-8 text-center text-slate-400 py-8">Loading user information...</div>;
     }
@@ -213,6 +251,67 @@ const SettingsPage: React.FC = () => {
                             <StatusMessage message={notificationsMessage} />
                         </div>
                     )}
+                </div>
+
+                {/* AI Configuration */}
+                <div className="bg-slate-800 rounded-lg border border-slate-700 p-6 shadow-lg relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
+                        <Cpu size={80} className="text-brand" />
+                    </div>
+
+                    <div className="flex items-center gap-2 mb-4">
+                        <Shield className="text-brand" size={20} />
+                        <h2 className="text-xl font-semibold text-slate-100">AI Provider Settings</h2>
+                    </div>
+                    <p className="text-slate-400 mb-6">Configure your Gemini API key and model selection for KubeCopilot's AI features.</p>
+
+                    <form onSubmit={handleAiSettingsChange} className="space-y-4">
+                        <div className="space-y-1">
+                            <FormField
+                                id="google-api-key"
+                                label="Google Gemini API Key"
+                                type="password"
+                                value={googleApiKey}
+                                onChange={e => setGoogleApiKey(e.target.value)}
+                                placeholder={isApiKeySet ? "•••••••••••••••• (API Key is set)" : "Enter your Gemini API key"}
+                            />
+                            {isApiKeySet && (
+                                <p className="text-xs text-brand/80 ml-1">✓ API Key is currently configured and active.</p>
+                            )}
+                        </div>
+
+                        <div className="space-y-1">
+                            <label htmlFor="gemini-model" className="block text-sm font-medium text-slate-300 ml-1">Gemini Model</label>
+                            <select
+                                id="gemini-model"
+                                value={geminiModel}
+                                onChange={e => setGeminiModel(e.target.value)}
+                                className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-md text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand/50 focus:border-brand transition-all appearance-none cursor-pointer"
+                            >
+                                <option value="gemini-3.0-flash">Gemini 2.0 Flash (Recommended - Fastest)</option>
+                                <option value="gemini-3.0-pro">Gemini 2.0 Pro (Most Capable)</option>
+                                <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                                <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                            </select>
+                        </div>
+
+                        <StatusMessage message={aiSettingsMessage} />
+
+                        <div className="pt-2">
+                            <button
+                                type="submit"
+                                disabled={aiSettingsLoading}
+                                className="w-full md:w-auto px-6 py-2.5 bg-brand hover:bg-brand-dark text-white font-semibold rounded-md transition-all transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            >
+                                {aiSettingsLoading ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        Saving...
+                                    </>
+                                ) : 'Save AI Settings'}
+                            </button>
+                        </div>
+                    </form>
                 </div>
 
                 {/* Password */}
