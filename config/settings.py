@@ -4,6 +4,18 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# ── Helpers ──────────────────────────────────────────────────────────────────
+
+def get_env_int(name: str, default: int) -> int:
+    """Safely get an environment variable as an integer."""
+    val = os.getenv(name)
+    if not val or not val.strip():
+        return default
+    try:
+        return int(val)
+    except ValueError:
+        return default
+
 # ── Paths ────────────────────────────────────────────────────────────────────
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
@@ -23,7 +35,7 @@ POSTGRES_URL: str = os.getenv("POSTGRES_URL", "postgresql://user:password@localh
 # ── API Server ───────────────────────────────────────────────────────────────
 JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "change-me-to-a-random-64-char-hex-string")
 JWT_ALGORITHM: str = "HS256"
-JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "480"))
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = get_env_int("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", 480)
 
 ADMIN_USERNAME: str = os.getenv("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "admin123")
@@ -35,11 +47,11 @@ CORS_ORIGINS: list[str] = [
 ]
 
 API_HOST: str = os.getenv("API_HOST", "0.0.0.0")
-API_PORT: int = int(os.getenv("API_PORT", "8321"))
+API_PORT: int = get_env_int("API_PORT", 8321)
 
 # ── Alert Email ──────────────────────────────────────────────────────────────
 SMTP_SERVER: str = os.getenv("SMTP_SERVER", "localhost")
-SMTP_PORT: int = int(os.getenv("SMTP_PORT", "1025"))
+SMTP_PORT: int = get_env_int("SMTP_PORT", 1025)
 SMTP_USER: str = os.getenv("SMTP_USER", "")
 SMTP_PASS: str = os.getenv("SMTP_PASS", "")
 FROM_EMAIL: str = os.getenv("FROM_EMAIL", "alerts@kube-copilot.local")
