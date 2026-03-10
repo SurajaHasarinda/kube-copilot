@@ -115,6 +115,14 @@ class SessionService:
                 rows = cur.execute('SELECT * FROM sessions ORDER BY created_at DESC').fetchall()
         return [self._row_to_session(row) for row in rows]
 
+    @property
+    def count(self) -> int:
+        """Return the total number of sessions."""
+        with get_pool().connection() as conn:
+            with conn.cursor() as cur:
+                row = cur.execute('SELECT COUNT(*) FROM sessions').fetchone()
+                return row[0] if row else 0
+
 
 # Module-level singleton
 session_service = SessionService()
