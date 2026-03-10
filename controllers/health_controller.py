@@ -1,9 +1,3 @@
-"""
-Health controller — server readiness endpoints.
-
-GET /api/v1/health — Server and K8s connectivity status
-"""
-
 from fastapi import APIRouter
 
 from config.schemas import HealthResponse

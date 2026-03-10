@@ -1,16 +1,3 @@
-"""
-Cluster monitor service — detects abnormal behaviors in the K8s cluster.
-
-Scans Kubernetes events and pod statuses to detect anomalies such as:
-- CrashLoopBackOff, OOMKilled, ImagePullBackOff
-- High restart counts
-- Pods stuck in Pending/Unknown states
-- Failed deployments
-- Warning-level K8s events
-
-Each anomaly is persisted to the database with timestamp, details, and associated logs.
-"""
-
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 

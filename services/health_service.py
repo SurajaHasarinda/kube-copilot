@@ -1,7 +1,3 @@
-"""
-Health service — checks server and Kubernetes connectivity.
-"""
-
 from services.session_service import session_service
 
 

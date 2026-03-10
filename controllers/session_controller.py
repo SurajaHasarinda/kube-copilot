@@ -1,10 +1,3 @@
-"""
-Session controller — session management endpoints.
-
-GET    /api/v1/sessions           — List active sessions
-DELETE /api/v1/sessions/{id}      — Delete a session
-"""
-
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from config.auth import verify_jwt_token

@@ -1,5 +1,5 @@
 """
-LangGraph graph definition for the K8s AIOps agent.
+LangGraph graph definition for the agent.
 
 Flow:
   ┌───────────┐
@@ -50,7 +50,6 @@ tool_map = {t.name: t for t in ALL_TOOLS}
 
 # ── Graph Nodes ──────────────────────────────────────────────────────────────
 
-# Module-level reference set by build_graph() — lets node functions access it.
 _llm_with_tools = None
 
 
@@ -131,7 +130,6 @@ def approval_gate_node(state: AgentState) -> dict:
         "actions": actions,
     }
 
-    # ── PAUSE HERE ──
     # `interrupt()` halts the graph and returns `plan` to the caller.
     # When the caller resumes with `Command(resume=True/False)`, the
     # return value of `interrupt()` is that boolean.

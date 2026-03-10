@@ -1,7 +1,3 @@
-"""
-Central configuration — reads from .env and provides typed defaults.
-"""
-
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -15,14 +11,14 @@ DATA_DIR.mkdir(exist_ok=True)
 
 # ── Google Gemini ────────────────────────────────────────────────────────────
 GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "")
-GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.0-flash")
 
 # ── Kubernetes ───────────────────────────────────────────────────────────────
 KUBECONFIG_PATH: str = os.getenv("KUBECONFIG_PATH", "")
 DEFAULT_NAMESPACE: str = os.getenv("DEFAULT_NAMESPACE", "default")
 
 # ── Persistence ──────────────────────────────────────────────────────────────
-POSTGRES_URL: str = os.getenv("POSTGRES_URL", "postgresql://user:password@localhost:5432/k8s_autopilot")
+POSTGRES_URL: str = os.getenv("POSTGRES_URL", "postgresql://user:password@localhost:5432/kube-copilot")
 
 # ── API Server ───────────────────────────────────────────────────────────────
 JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "change-me-to-a-random-64-char-hex-string")

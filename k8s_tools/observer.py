@@ -1,10 +1,3 @@
-"""
-Observer layer — read-only Kubernetes operations.
-
-Every function returns a plain-text summary suitable for LLM consumption.
-All K8s API calls are wrapped in try-except for graceful error handling.
-"""
-
 from kubernetes.client.rest import ApiException
 from k8s_tools.client import core_v1_client, apps_v1_client
 

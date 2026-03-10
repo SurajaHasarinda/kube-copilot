@@ -1,9 +1,3 @@
-"""
-Kubernetes client initialization.
-
-Handles both in-cluster and local kubeconfig authentication.
-"""
-
 from kubernetes import client, config as k8s_config
 from kubernetes.client.rest import ApiException
 

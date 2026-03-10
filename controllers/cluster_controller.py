@@ -1,14 +1,3 @@
-"""
-Cluster controller — handles cluster visualization and monitoring requests.
-
-GET  /api/v1/cluster/structure    — Cluster resource tree
-GET  /api/v1/cluster/anomalies    — List detected anomalies
-GET  /api/v1/cluster/anomalies/{id} — Single anomaly with full logs
-POST /api/v1/cluster/scan         — Trigger a cluster scan for anomalies
-POST /api/v1/cluster/anomalies/{id}/resolve — Mark anomaly as resolved
-GET  /api/v1/cluster/anomalies/stats — Anomaly severity counts
-"""
-
 from fastapi import APIRouter, Depends, Query, Path
 
 from config.auth import verify_jwt_token

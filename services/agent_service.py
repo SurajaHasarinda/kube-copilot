@@ -1,10 +1,3 @@
-"""
-Agent service — core business logic for interacting with the LangGraph agent.
-
-Encapsulates graph invocation, interrupt detection, and approval handling
-so that controllers remain thin HTTP adapters.
-"""
-
 from dataclasses import dataclass
 
 from langchain_core.messages import HumanMessage

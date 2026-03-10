@@ -1,11 +1,3 @@
-"""
-Session management service.
-
-Manages persistent sessions that link API conversations to
-LangGraph checkpointer threads. Each session tracks namespace,
-message count, and pending approval status using PostgreSQL.
-"""
-
 import uuid
 from datetime import datetime, timezone
 from dataclasses import dataclass

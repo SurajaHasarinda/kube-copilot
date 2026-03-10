@@ -1,11 +1,3 @@
-"""
-Executor layer — write operations on the Kubernetes cluster.
-
-Every write action returns a status string.
-These functions do NOT include the human-approval gate — that is
-handled at the agent/graph layer so the LLM never bypasses it.
-"""
-
 from datetime import datetime, timezone
 
 from kubernetes.client.rest import ApiException

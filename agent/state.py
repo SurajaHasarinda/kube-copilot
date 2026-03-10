@@ -1,7 +1,3 @@
-"""
-LangGraph state schema for the K8s AIOps agent.
-"""
-
 from typing import Annotated, Literal
 from typing_extensions import TypedDict
 from langgraph.graph.message import add_messages

@@ -1,10 +1,3 @@
-"""
-Chat controller — agent interaction endpoints.
-
-POST /api/v1/chat           — Send a message to the agent
-POST /api/v1/chat/approve   — Approve or deny a pending write action
-"""
-
 from fastapi import APIRouter, Depends
 
 from config.auth import verify_jwt_token
@@ -20,7 +13,7 @@ async def send_message(
     token_payload: dict = Depends(verify_jwt_token),
 ):
     """
-    Send a message to the K8s AIOps agent.
+    Send a message to the agent.
 
     If the agent needs to perform a write action, the response will have
     `type: "approval_required"` with details in `approval_info`.

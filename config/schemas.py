@@ -1,7 +1,3 @@
-"""
-Pydantic request / response schemas for the API.
-"""
-
 from pydantic import BaseModel, Field
 
 

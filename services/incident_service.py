@@ -1,7 +1,3 @@
-"""
-Incident service — queries the PostgreSQL incident memory.
-"""
-
 from persistence.memory import get_recent_incidents, get_incident_count_today
 
 

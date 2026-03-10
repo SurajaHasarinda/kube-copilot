@@ -1,6 +1,4 @@
 """
-LangChain tool wrappers around the K8s observer and executor functions.
-
 Read-only tools are available to the LLM at all times.
 Write tools are also available, but the graph enforces a human-approval
 gate before their results are committed.

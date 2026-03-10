@@ -1,9 +1,3 @@
-"""
-Incident controller — incident history endpoints.
-
-GET /api/v1/incidents — List past incident records
-"""
-
 from fastapi import APIRouter, Depends, Query
 
 from config.auth import verify_jwt_token

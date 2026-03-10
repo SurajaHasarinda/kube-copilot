@@ -1,9 +1,3 @@
-"""
-Auth controller — handles API key → JWT token exchange.
-
-POST /api/v1/auth/token
-"""
-
 from fastapi import APIRouter, HTTPException, status
 
 from config.auth import create_access_token

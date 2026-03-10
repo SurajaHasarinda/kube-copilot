@@ -1,13 +1,3 @@
-"""
-Authentication & authorization utilities.
-
-Supports two auth mechanisms:
-   2. JWT Bearer token (header: Authorization: Bearer <token>) — used for all
-     subsequent requests
-
-The JWT encodes a session identifier and expiry. This keeps the auth stateless and secure.
-"""
-
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, Security, status

@@ -1,7 +1,3 @@
-"""
-Cluster visualization service — fetches cluster structure data.
-"""
-
 from k8s_tools.client import core_v1_client, apps_v1_client, ApiException
 
 
