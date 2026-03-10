@@ -78,17 +78,63 @@ const HomePage: React.FC = () => {
         const userText = [contextStr, input.trim()].filter(Boolean).join(' ');
         setInput('');
         setSelectedContexts([]);
+
         setMessages(prev => [...prev, { role: 'human', content: userText }]);
         setLoading(true);
-        try {
-            const result = await api.sendMessage(userText, sessionId, '');
-            if (result.session_id) setSessionId(result.session_id);
-            appendAgentMessage(result);
-        } catch {
-            setMessages(prev => [...prev, { role: 'agent', content: '❌ Failed to communicate with the agent.' }]);
-        } finally {
+
+        const token = localStorage.getItem('token');
+        const encodedMessage = encodeURIComponent(userText);
+        const encodedSessionId = encodeURIComponent(sessionId);
+        const url = `/api/v1/chat/stream?message=${encodedMessage}&session_id=${encodedSessionId}&token=${token}`;
+
+        const eventSource = new EventSource(url);
+
+        // Add a placeholder message for the agent that we will stream into
+        let currentAgentMessage: Message = { role: 'agent', content: '' };
+        setMessages(prev => [...prev, currentAgentMessage]);
+        let messageIndex = -1;
+
+        eventSource.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+
+            setMessages(prev => {
+                const newMessages = [...prev];
+                if (messageIndex === -1) {
+                    messageIndex = newMessages.length - 1;
+                }
+
+                if (data.type === 'metadata') {
+                    if (data.session_id) {
+                        setSessionId(data.session_id);
+                    }
+                } else if (data.type === 'thought') {
+                    // Intentionally ignore 'thought' payloads as requested
+                } else if (['response', 'error', 'approval_required'].includes(data.type)) {
+                    // Final response, error, or approval required
+                    currentAgentMessage.content += data.content || '';
+                    if (data.type === 'approval_required') {
+                        currentAgentMessage.approvalInfo = data.approval_info;
+                    }
+                    newMessages[messageIndex] = { ...currentAgentMessage };
+                    setLoading(false);
+                    eventSource.close();
+                }
+
+                return newMessages;
+            });
+        };
+
+        eventSource.onerror = () => {
+            setMessages(prev => {
+                const newMessages = [...prev];
+                if (messageIndex !== -1) {
+                    newMessages[messageIndex] = { ...newMessages[messageIndex], content: newMessages[messageIndex].content + '\n\n❌ Failed to communicate with the agent.' };
+                }
+                return newMessages;
+            });
             setLoading(false);
-        }
+            eventSource.close();
+        };
     };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -171,50 +217,53 @@ const HomePage: React.FC = () => {
                     </div>
                 )}
 
-                {messages.map((msg, i) => (
-                    <div key={i} className={`flex gap-3 ${msg.role === 'human' ? 'flex-row-reverse' : ''}`}>
-                        <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${msg.role === 'human' ? 'bg-slate-700' : 'bg-brand/20 text-brand'}`}>
-                            {msg.role === 'human' ? <User size={16} /> : <img src="/kube-copilot.svg" alt="Avatar" className="w-4 h-4" />}
-                        </div>
-                        <div className={`max-w-[85%] rounded-lg p-3 ${msg.role === 'human' ? 'bg-slate-800 text-slate-200' : 'bg-slate-800/50 text-slate-300 border border-slate-700/50'}`}>
-                            {msg.content && <MessageContent content={msg.content} />}
-                            {msg.approvalInfo && (
-                                <div className="mt-4 p-4 bg-slate-900 border border-warning/50 rounded-lg">
-                                    <h3 className="text-warning font-semibold flex items-center gap-2 mb-2">⚠️ Action Approval Required</h3>
-                                    <p className="text-sm text-slate-300 mb-3">{msg.approvalInfo.message}</p>
-                                    <div className="bg-slate-800 p-3 rounded mb-4 max-h-40 overflow-auto text-xs font-mono text-slate-400">
-                                        {msg.approvalInfo.actions.map((act, index) => (
-                                            <div key={index} className="mb-2 last:mb-0">
-                                                <span className="text-brand">Tool:</span> {act.tool} <br />
-                                                <span className="text-brand">Args:</span> {JSON.stringify(act.args, null, 2)}
-                                            </div>
-                                        ))}
-                                    </div>
-                                    {msg.approvalStatus ? (
-                                        <div className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 ${msg.approvalStatus === 'approved'
+                {messages.map((msg, i) => {
+                    if (msg.role === 'agent' && !msg.content && !msg.approvalInfo) return null;
+                    return (
+                        <div key={i} className={`flex gap-3 ${msg.role === 'human' ? 'flex-row-reverse' : ''}`}>
+                            <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${msg.role === 'human' ? 'bg-slate-700' : 'bg-brand/20 text-brand'}`}>
+                                {msg.role === 'human' ? <User size={16} /> : <img src="/kube-copilot.svg" alt="Avatar" className="w-4 h-4" />}
+                            </div>
+                            <div className={`max-w-[85%] rounded-lg p-3 ${msg.role === 'human' ? 'bg-slate-800 text-slate-200' : 'bg-slate-800/50 text-slate-300 border border-slate-700/50'}`}>
+                                {msg.content && <MessageContent content={msg.content} />}
+                                {msg.approvalInfo && (
+                                    <div className="mt-4 p-4 bg-slate-900 border border-warning/50 rounded-lg">
+                                        <h3 className="text-warning font-semibold flex items-center gap-2 mb-2">⚠️ Action Approval Required</h3>
+                                        <p className="text-sm text-slate-300 mb-3">{msg.approvalInfo.message}</p>
+                                        <div className="bg-slate-800 p-3 rounded mb-4 max-h-40 overflow-auto text-xs font-mono text-slate-400">
+                                            {msg.approvalInfo.actions.map((act, index) => (
+                                                <div key={index} className="mb-2 last:mb-0">
+                                                    <span className="text-brand">Tool:</span> {act.tool} <br />
+                                                    <span className="text-brand">Args:</span> {JSON.stringify(act.args, null, 2)}
+                                                </div>
+                                            ))}
+                                        </div>
+                                        {msg.approvalStatus ? (
+                                            <div className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 ${msg.approvalStatus === 'approved'
                                                 ? 'bg-green-900/20 border-green-500/30 text-green-400'
                                                 : 'bg-red-900/20 border-red-500/30 text-red-400'
-                                            }`}>
-                                            {msg.approvalStatus === 'approved'
-                                                ? <><CheckCircle size={16} /><span className="text-sm font-semibold">Action Approved</span></>
-                                                : <><XCircle size={16} /><span className="text-sm font-semibold">Action Denied</span></>
-                                            }
-                                        </div>
-                                    ) : (
-                                        <div className="flex gap-2">
-                                            <button onClick={() => handleApprove(i, true)} className="flex items-center gap-1.5 bg-success/20 text-success hover:bg-success hover:text-white px-3 py-1.5 rounded transition-colors text-sm cursor-pointer">
-                                                <CheckCircle size={16} /> Approve
-                                            </button>
-                                            <button onClick={() => handleApprove(i, false)} className="flex items-center gap-1.5 bg-danger/20 text-danger hover:bg-danger hover:text-white px-3 py-1.5 rounded transition-colors text-sm cursor-pointer">
-                                                <XCircle size={16} /> Deny
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
+                                                }`}>
+                                                {msg.approvalStatus === 'approved'
+                                                    ? <><CheckCircle size={16} /><span className="text-sm font-semibold">Action Approved</span></>
+                                                    : <><XCircle size={16} /><span className="text-sm font-semibold">Action Denied</span></>
+                                                }
+                                            </div>
+                                        ) : (
+                                            <div className="flex gap-2">
+                                                <button onClick={() => handleApprove(i, true)} className="flex items-center gap-1.5 bg-success/20 text-success hover:bg-success hover:text-white px-3 py-1.5 rounded transition-colors text-sm cursor-pointer">
+                                                    <CheckCircle size={16} /> Approve
+                                                </button>
+                                                <button onClick={() => handleApprove(i, false)} className="flex items-center gap-1.5 bg-danger/20 text-danger hover:bg-danger hover:text-white px-3 py-1.5 rounded transition-colors text-sm cursor-pointer">
+                                                    <XCircle size={16} /> Deny
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
 
                 {loading && !fetchingHistory && (
                     <div className="flex gap-3 animate-fade-in">

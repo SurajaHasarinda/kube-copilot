@@ -119,7 +119,7 @@ export const api = {
             message,
             session_id: sessionId,
             namespace
-        });
+        }, { timeout: 300000 }); // 5 minutes timeout for AI processing
         return response.data;
     },
 
@@ -127,7 +127,7 @@ export const api = {
         const response = await apiClient.post<ChatResponse>('/chat/approve', {
             session_id: sessionId,
             approved
-        });
+        }, { timeout: 300000 }); // 5 minutes timeout for AI processing
         return response.data;
     },
 
@@ -163,7 +163,7 @@ export const api = {
 
     scanCluster: async (): Promise<any> => {
         try {
-            const response = await apiClient.post('/cluster/scan');
+            const response = await apiClient.post('/cluster/scan', {}, { timeout: 120000 }); // 2 minute timeout for scanning
             return response.data;
         } catch (error) {
             console.error('Cluster scan error:', error);

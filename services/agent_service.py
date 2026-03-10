@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from langchain_core.messages import HumanMessage
 from langgraph.types import Command
+import json
 
 from services.session_service import session_service, Session
 from config.settings import DEFAULT_NAMESPACE
@@ -137,7 +138,71 @@ class AgentService:
                             tool_name = getattr(msg, "name", "unknown")
                             print(f"[{session_id}] ✅ Tool completed: {tool_name}")
         print(f"--- [{session_id}] Graph Execution Paused/Completed ---\n")
+        print(f"--- [{session_id}] Graph Execution Paused/Completed ---\n")
         return self.graph.get_state(config).values
+
+    async def stream_message(
+        self,
+        message: str,
+        session_id: str = "",
+        namespace: str = "",
+    ):
+        """
+        Async generator for Server-Sent Events (SSE).
+        Streams back tool execution progress and the final response.
+        """
+        ns = namespace or DEFAULT_NAMESPACE
+        session = session_service.get_or_create_session(session_id, ns)
+        session.message_count += 1
+        
+        # Send initial metadata
+        yield f"data: {json.dumps({'type': 'metadata', 'session_id': session.session_id})}\n\n"
+
+        config = {"configurable": {"thread_id": session.thread_id}}
+        initial_state = {
+            "messages": [HumanMessage(content=message)],
+            "human_approval": None,
+            "pending_action": None,
+            "current_namespace": session.namespace,
+        }
+
+        try:
+            print(f"\n--- [{session.session_id}] Starting Graph SSE Stream ---")
+            for event in self.graph.stream(initial_state, config, stream_mode="updates"):
+                for node, state in event.items():
+                    print(f"[{session.session_id}] 🔄 Node executed: {node}")
+                    if isinstance(state, dict) and "messages" in state:
+                        messages = state["messages"] if isinstance(state["messages"], list) else [state["messages"]]
+                        for msg in messages:
+                            if hasattr(msg, "tool_calls") and msg.tool_calls:
+                                tool_names = [t["name"] for t in msg.tool_calls]
+                                yield f"data: {json.dumps({'type': 'thought', 'content': f'Agent calling tools: {tool_names}'})}\n\n"
+                            elif getattr(msg, "type", None) == "tool":
+                                tool_name = getattr(msg, "name", "unknown")
+                                yield f"data: {json.dumps({'type': 'thought', 'content': f'Tool completed: {tool_name}'})}\n\n"
+            
+            # Streaming execution complete, evaluate final state
+            final_state = self.graph.get_state(config).values
+            res = self._process_graph_result(final_state, session, config)
+            session_service.save_session(session)
+            
+            # Format the final response the same way as `_to_chat_response` logic
+            final_data = {
+                "session_id": res.session_id,
+                "type": res.type,
+                "content": res.content,
+                "approval_info": None
+            }
+            if res.approval_info:
+                final_data["approval_info"] = {
+                    "message": res.approval_info.get("message", ""),
+                    "actions": res.approval_info.get("actions", []),
+                }
+                
+            yield f"data: {json.dumps(final_data)}\n\n"
+
+        except Exception as e:
+            yield f"data: {json.dumps({'session_id': session.session_id, 'type': 'error', 'content': f'Agent error: {e}'})}\n\n"
 
     def _process_graph_result(
         self, result: dict, session: Session, config: dict

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
 
 from config.auth import verify_jwt_token
 from config.schemas import ChatRequest, ChatResponse, ApprovalRequest, ApprovalInfo
@@ -26,6 +27,22 @@ async def send_message(
     )
     return _to_chat_response(result)
 
+
+@router.get("/stream")
+async def stream_message(
+    message: str,
+    session_id: str = "",
+    namespace: str = "",
+    token_payload: dict = Depends(verify_jwt_token),
+):
+    """
+    Send a message to the agent using Server-Sent Events (SSE).
+    Returns real-time updates as the agent executes tools and reasons.
+    """
+    return StreamingResponse(
+        agent_service.stream_message(message, session_id, namespace),
+        media_type="text/event-stream"
+    )
 
 @router.post("/approve", response_model=ChatResponse)
 async def approve_action(
