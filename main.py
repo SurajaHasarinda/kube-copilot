@@ -71,8 +71,7 @@ async def lifespan(application: FastAPI):
 app = FastAPI(
     title="KubeCopilot API",
     description=(
-        "AI-powered Kubernetes AIOps agent with Chain-of-Thought reasoning. "
-        "Diagnose and manage your K3s cluster through a secure REST API."
+        "AI-powered Kubernetes agent with Chain-of-Thought reasoning. "
     ),
     version="1.0.0",
     lifespan=lifespan,
@@ -99,6 +98,12 @@ app.include_router(chat_controller.router)
 app.include_router(incident_controller.router)
 app.include_router(session_controller.router)
 app.include_router(cluster_controller.router)
+
+
+@app.get("/health", include_in_schema=False)
+async def root_health():
+    """Redirect root health to api health."""
+    return {"status": "healthy", "version": "1.0.0"}
 
 
 # ── Static Files (Frontend) ───────────────────────────────────────────────────
