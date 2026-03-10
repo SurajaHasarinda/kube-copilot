@@ -12,6 +12,7 @@ export interface UserInfo {
     id: string;
     username: string;
     email?: string | null;
+    notifications_enabled?: boolean;
     created_at: string;
 }
 

@@ -32,7 +32,7 @@ async def get_token(request: TokenRequest):
 
 from fastapi import Depends
 from config.auth import verify_jwt_token
-from config.schemas import ChangePasswordRequest, ChangeUsernameRequest, ChangeEmailRequest, UserInfoResponse
+from config.schemas import ChangePasswordRequest, ChangeUsernameRequest, ChangeEmailRequest, UserInfoResponse, ChangeNotificationsRequest
 
 @router.get("/me", response_model=UserInfoResponse)
 async def get_current_user(token_payload: dict = Depends(verify_jwt_token)):
@@ -148,3 +148,28 @@ async def change_email(
         )
     
     return {"message": "Email updated successfully."}
+
+@router.post("/notifications")
+async def toggle_notifications(
+    request: ChangeNotificationsRequest,
+    token_payload: dict = Depends(verify_jwt_token)
+):
+    """
+    Toggle notifications for the currently authenticated user.
+    """
+    username = token_payload.get("sub")
+    if not username:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload.",
+        )
+    
+    success = auth_service.toggle_notifications(username, request.enabled)
+    
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to update notification preferences.",
+        )
+    
+    return {"message": "Notification preferences updated successfully."}

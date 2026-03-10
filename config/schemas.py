@@ -37,10 +37,14 @@ class ChangeEmailRequest(BaseModel):
     password: str = Field(..., description="Current password for verification")
 
 
+class ChangeNotificationsRequest(BaseModel):
+    enabled: bool
+
 class UserInfoResponse(BaseModel):
     id: str
     username: str
     email: str | None = None
+    notifications_enabled: bool = True
     created_at: str
 
 

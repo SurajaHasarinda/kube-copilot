@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Lock, User, Mail } from 'lucide-react';
+import { Settings, Lock, User, Mail, Bell } from 'lucide-react';
 import { api } from '../api';
 import { UserInfo } from '../types';
 import FormField from '../components/FormField';
@@ -10,6 +10,10 @@ type FormMessage = { type: 'success' | 'error'; text: string } | null;
 const SettingsPage: React.FC = () => {
     const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
     const [loadingUserInfo, setLoadingUserInfo] = useState(true);
+
+    const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+    const [notificationsLoading, setNotificationsLoading] = useState(false);
+    const [notificationsMessage, setNotificationsMessage] = useState<FormMessage>(null);
 
     const [newUsername, setNewUsername] = useState('');
     const [usernamePassword, setUsernamePassword] = useState('');
@@ -34,6 +38,9 @@ const SettingsPage: React.FC = () => {
             setUserInfo(info);
             setNewUsername(info.username);
             setNewEmail(info.email || '');
+            if (info.notifications_enabled !== undefined) {
+                setNotificationsEnabled(info.notifications_enabled);
+            }
         }
         setLoadingUserInfo(false);
     };
@@ -82,6 +89,25 @@ const SettingsPage: React.FC = () => {
             setEmailMessage({ type: 'error', text: 'An error occurred while changing the email.' });
         } finally {
             setEmailLoading(false);
+        }
+    };
+
+    const handleToggleNotifications = async () => {
+        setNotificationsLoading(true);
+        setNotificationsMessage(null);
+        try {
+            const newStatus = !notificationsEnabled;
+            const success = await api.changeNotifications(newStatus);
+            if (success) {
+                setNotificationsEnabled(newStatus);
+                setNotificationsMessage({ type: 'success', text: `Notifications ${newStatus ? 'enabled' : 'disabled'}.` });
+            } else {
+                setNotificationsMessage({ type: 'error', text: 'Failed to update notification settings.' });
+            }
+        } catch {
+            setNotificationsMessage({ type: 'error', text: 'An error occurred.' });
+        } finally {
+            setNotificationsLoading(false);
         }
     };
 
@@ -159,6 +185,34 @@ const SettingsPage: React.FC = () => {
                             {emailLoading ? 'Updating Email...' : 'Update Alert Email'}
                         </button>
                     </form>
+                </div>
+
+                {/* Notifications */}
+                <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Bell className="text-brand" size={20} />
+                        <h2 className="text-xl font-semibold text-slate-100">Notifications</h2>
+                    </div>
+                    <p className="text-slate-400 mb-6">Receive email alerts when critical cluster anomalies are detected.</p>
+                    <div className="flex items-center justify-between p-4 bg-slate-900 rounded-lg border border-slate-700">
+                        <div>
+                            <p className="font-medium text-slate-200">Email Notifications</p>
+                            <p className="text-sm text-slate-400">{notificationsEnabled ? "You will receive critical alerts." : "Alerts are currently paused."}</p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={handleToggleNotifications}
+                            disabled={notificationsLoading}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${notificationsEnabled ? 'bg-brand' : 'bg-slate-600'} disabled:opacity-50`}
+                        >
+                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${notificationsEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                        </button>
+                    </div>
+                    {notificationsMessage && (
+                        <div className="mt-4">
+                            <StatusMessage message={notificationsMessage} />
+                        </div>
+                    )}
                 </div>
 
                 {/* Password */}

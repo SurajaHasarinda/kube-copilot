@@ -27,6 +27,11 @@ class AuthService:
                 cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name='users' AND column_name='email'")
                 if not cur.fetchone():
                     cur.execute("ALTER TABLE users ADD COLUMN email TEXT")
+
+                # Check for notifications_enabled column
+                cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name='users' AND column_name='notifications_enabled'")
+                if not cur.fetchone():
+                    cur.execute("ALTER TABLE users ADD COLUMN notifications_enabled BOOLEAN DEFAULT TRUE")
                 
                 # Check if we need to seed the default admin
                 cur.execute('SELECT COUNT(*) as c FROM users')
@@ -77,7 +82,7 @@ class AuthService:
         with get_pool().connection() as conn:
             with conn.cursor(row_factory=dict_row) as cur:
                 row = cur.execute(
-                    'SELECT id, username, email, created_at FROM users WHERE username = %s',
+                    'SELECT id, username, email, notifications_enabled, created_at FROM users WHERE username = %s',
                     (username,)
                 ).fetchone()
                 return dict(row) if row else None
@@ -92,6 +97,19 @@ class AuthService:
                 cur.execute(
                     'UPDATE users SET email = %s WHERE username = %s',
                     (new_email, username)
+                )
+                if cur.rowcount > 0:
+                    conn.commit()
+                    return True
+        return False
+
+    def toggle_notifications(self, username: str, enabled: bool) -> bool:
+        """Toggle the notifications enabled status."""
+        with get_pool().connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    'UPDATE users SET notifications_enabled = %s WHERE username = %s',
+                    (enabled, username)
                 )
                 if cur.rowcount > 0:
                     conn.commit()
@@ -124,11 +142,11 @@ class AuthService:
         return False
 
     def get_all_alert_emails(self) -> list[str]:
-        """Get all configured alert emails."""
+        """Get all configured alert emails where notifications are enabled."""
         emails = []
         with get_pool().connection() as conn:
             with conn.cursor() as cur:
-                rows = cur.execute('SELECT email FROM users WHERE email IS NOT NULL AND email != \'\'').fetchall()
+                rows = cur.execute('SELECT email FROM users WHERE email IS NOT NULL AND email != \'\' AND (notifications_enabled = TRUE OR notifications_enabled IS NULL)').fetchall()
                 for row in rows:
                     emails.append(row[0])
         return emails

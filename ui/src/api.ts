@@ -99,6 +99,16 @@ export const api = {
         }
     },
 
+    changeNotifications: async (enabled: boolean): Promise<boolean> => {
+        try {
+            await apiClient.post('/auth/notifications', { enabled });
+            return true;
+        } catch (error) {
+            console.error('Notifications toggle error:', error);
+            return false;
+        }
+    },
+
     logout: () => {
         localStorage.removeItem('token');
         window.location.reload();
