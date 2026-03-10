@@ -57,6 +57,31 @@ spec:
             secretKeyRef:
               name: kube-copilot-secret
               key: POSTGRES_URL
+        - name: SMTP_SERVER
+          valueFrom:
+            secretKeyRef:
+              name: kube-copilot-secret
+              key: SMTP_SERVER
+        - name: SMTP_PORT
+          valueFrom:
+            secretKeyRef:
+              name: kube-copilot-secret
+              key: SMTP_PORT
+        - name: SMTP_USER
+          valueFrom:
+            secretKeyRef:
+              name: kube-copilot-secret
+              key: SMTP_USER
+        - name: SMTP_PASS
+          valueFrom:
+            secretKeyRef:
+              name: kube-copilot-secret
+              key: SMTP_PASS
+        - name: FROM_EMAIL
+          valueFrom:
+            secretKeyRef:
+              name: kube-copilot-secret
+              key: FROM_EMAIL
         volumeMounts:
         - name: data-volume
           mountPath: /app/data

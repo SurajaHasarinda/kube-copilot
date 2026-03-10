@@ -36,3 +36,10 @@ CORS_ORIGINS: list[str] = [
 
 API_HOST: str = os.getenv("API_HOST", "0.0.0.0")
 API_PORT: int = int(os.getenv("API_PORT", "8321"))
+
+# ── Alert Email ──────────────────────────────────────────────────────────────
+SMTP_SERVER: str = os.getenv("SMTP_SERVER", "localhost")
+SMTP_PORT: int = int(os.getenv("SMTP_PORT", "1025"))
+SMTP_USER: str = os.getenv("SMTP_USER", "")
+SMTP_PASS: str = os.getenv("SMTP_PASS", "")
+FROM_EMAIL: str = os.getenv("FROM_EMAIL", "alerts@kube-copilot.local")

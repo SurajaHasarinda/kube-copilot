@@ -248,8 +248,14 @@ def build_graph(checkpointer=None):
         A compiled LangGraph graph.
     """
     if checkpointer is None:
+        import psycopg
+        from config.settings import POSTGRES_URL
+        
+        with psycopg.connect(POSTGRES_URL, autocommit=True) as conn:
+            temp_checkpointer = PostgresSaver(conn)
+            temp_checkpointer.setup()
+            
         checkpointer = PostgresSaver(get_pool())
-        checkpointer.setup()
 
     graph = StateGraph(AgentState)
 
