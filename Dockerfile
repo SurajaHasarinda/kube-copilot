@@ -22,7 +22,7 @@ WORKDIR /app
 
 # Install curl (useful for healthchecks)
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends curl && \
     rm -rf /var/lib/apt/lists/*
 
 # Install dependencies
