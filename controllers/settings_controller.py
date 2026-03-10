@@ -16,7 +16,7 @@ class SettingsResponse(BaseModel):
     google_api_key_configured: bool
     gemini_model: str
 
-@router.get("/", response_model=SettingsResponse)
+@router.get("", response_model=SettingsResponse)
 async def get_settings(current_user=Depends(get_current_user)):
     """Get the current settings (API key is obfuscated)."""
     api_key = get_setting("GOOGLE_API_KEY", GOOGLE_API_KEY)
@@ -29,7 +29,7 @@ async def get_settings(current_user=Depends(get_current_user)):
         gemini_model=model if model else "gemini-3.0-flash",
     )
 
-@router.post("/")
+@router.post("")
 async def update_settings(settings: SettingsUpdate, current_user=Depends(get_current_user)):
     """Update settings."""
     if settings.google_api_key is not None:
