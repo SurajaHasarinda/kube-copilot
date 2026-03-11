@@ -47,6 +47,8 @@ async def lifespan(application: FastAPI):
     from services.cluster_monitor_service import cluster_monitor_service
 
     def run_periodic_scan():
+        # Wait for the app to fully start up before scanning
+        time.sleep(60)
         print("🚀 Background anomaly scanner started.")
         while True:
             try:

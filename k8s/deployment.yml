@@ -23,10 +23,10 @@ spec:
         - containerPort: 8321
         resources:
           requests:
-            memory: "256Mi"
+            memory: "512Mi"
             cpu: "125m"
           limits:
-            memory: "1Gi"
+            memory: "1536Mi"
             cpu: "500m"
         envFrom:
         - configMapRef:
@@ -85,19 +85,25 @@ spec:
         volumeMounts:
         - name: data-volume
           mountPath: /app/data
+        startupProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8321
+          failureThreshold: 12
+          periodSeconds: 10
         livenessProbe:
           httpGet:
             path: /api/v1/health
             port: 8321
-          initialDelaySeconds: 40
+          initialDelaySeconds: 10
           periodSeconds: 30
           timeoutSeconds: 10
-          failureThreshold: 3
+          failureThreshold: 5
         readinessProbe:
           httpGet:
             path: /api/v1/health
             port: 8321
-          initialDelaySeconds: 10
+          initialDelaySeconds: 5
           periodSeconds: 10
           timeoutSeconds: 5
           failureThreshold: 3

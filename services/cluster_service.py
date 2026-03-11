@@ -15,7 +15,7 @@ class ClusterService:
         
         try:
             # Get all namespaces
-            namespaces = core_v1_client.list_namespace().items
+            namespaces = core_v1_client.list_namespace(_request_timeout=10).items
             
             for ns in namespaces:
                 ns_name = ns.metadata.name
@@ -29,7 +29,7 @@ class ClusterService:
                 
                 # Get deployments in this namespace
                 try:
-                    deployments = apps_v1_client.list_namespaced_deployment(ns_name).items
+                    deployments = apps_v1_client.list_namespaced_deployment(ns_name, _request_timeout=10).items
                     if deployments:
                         deployments_node = {
                             "name": "Deployments",
@@ -59,7 +59,8 @@ class ClusterService:
                                 if label_selector:
                                     pods = core_v1_client.list_namespaced_pod(
                                         ns_name, 
-                                        label_selector=label_selector
+                                        label_selector=label_selector,
+                                        _request_timeout=10,
                                     ).items
                                     
                                     for pod in pods:
@@ -89,7 +90,7 @@ class ClusterService:
                 
                 # Get standalone pods (not managed by deployments)
                 try:
-                    all_pods = core_v1_client.list_namespaced_pod(ns_name).items
+                    all_pods = core_v1_client.list_namespaced_pod(ns_name, _request_timeout=10).items
                     # Filter out pods that belong to deployments (have owner references)
                     standalone_pods = [
                         pod for pod in all_pods 
@@ -127,7 +128,7 @@ class ClusterService:
                 
                 # Get services
                 try:
-                    services = core_v1_client.list_namespaced_service(ns_name).items
+                    services = core_v1_client.list_namespaced_service(ns_name, _request_timeout=10).items
                     if services:
                         services_node = {
                             "name": "Services",
@@ -153,7 +154,7 @@ class ClusterService:
                 
                 # Get ConfigMaps
                 try:
-                    configmaps = core_v1_client.list_namespaced_config_map(ns_name).items
+                    configmaps = core_v1_client.list_namespaced_config_map(ns_name, _request_timeout=10).items
                     if configmaps:
                         cm_node = {
                             "name": "ConfigMaps",
@@ -176,7 +177,7 @@ class ClusterService:
                 
                 # Get Secrets
                 try:
-                    secrets = core_v1_client.list_namespaced_secret(ns_name).items
+                    secrets = core_v1_client.list_namespaced_secret(ns_name, _request_timeout=10).items
                     if secrets:
                         secrets_node = {
                             "name": "Secrets",

@@ -40,7 +40,7 @@ class AgentService:
             self._graph = agent_graph
         return self._graph
 
-    def send_message(
+    async def send_message(
         self,
         message: str,
         session_id: str = "",
@@ -49,9 +49,21 @@ class AgentService:
         """
         Send a user message to the agent and return the result.
 
-        If the agent needs approval for a write action, the result will
-        have type='approval_required' with the plan in approval_info.
+        Runs the synchronous graph in a thread pool to avoid blocking the
+        event loop (which would starve health probes and other requests).
         """
+        import asyncio
+        return await asyncio.to_thread(
+            self._send_message_sync, message, session_id, namespace
+        )
+
+    def _send_message_sync(
+        self,
+        message: str,
+        session_id: str = "",
+        namespace: str = "",
+    ) -> AgentResult:
+        """Synchronous implementation of send_message."""
         ns = namespace or DEFAULT_NAMESPACE
         session = session_service.get_or_create_session(session_id, ns)
         session.message_count += 1
@@ -76,17 +88,19 @@ class AgentService:
                 content=f"Agent error: {e}",
             )
 
-    def approve_action(self, session_id: str, approved: bool) -> AgentResult:
+    async def approve_action(self, session_id: str, approved: bool) -> AgentResult:
         """
         Approve or deny a pending write action and resume the agent.
 
-        Args:
-            session_id: The session with the pending approval.
-            approved:   True to approve, False to deny.
-
-        Returns:
-            AgentResult with the agent's follow-up response.
+        Runs in a thread pool to avoid blocking the event loop.
         """
+        import asyncio
+        return await asyncio.to_thread(
+            self._approve_action_sync, session_id, approved
+        )
+
+    def _approve_action_sync(self, session_id: str, approved: bool) -> AgentResult:
+        """Synchronous implementation of approve_action."""
         session = session_service.get_session(session_id)
         if session is None:
             return AgentResult(
@@ -137,7 +151,6 @@ class AgentService:
                         elif getattr(msg, "type", None) == "tool":
                             tool_name = getattr(msg, "name", "unknown")
                             print(f"[{session_id}] ✅ Tool completed: {tool_name}")
-        print(f"--- [{session_id}] Graph Execution Paused/Completed ---\n")
         print(f"--- [{session_id}] Graph Execution Paused/Completed ---\n")
         return self.graph.get_state(config).values
 

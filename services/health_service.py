@@ -20,10 +20,10 @@ class HealthService:
 
     @staticmethod
     def _check_k8s() -> bool:
-        """Attempt a lightweight K8s API call."""
+        """Attempt a lightweight K8s API call with a strict timeout."""
         try:
             from k8s_tools.client import core_v1_client
-            core_v1_client.list_namespace(limit=1)
+            core_v1_client.list_namespace(limit=1, _request_timeout=5)
             return True
         except Exception:
             return False
