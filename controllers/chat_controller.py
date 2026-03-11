@@ -20,7 +20,7 @@ async def send_message(
     `type: "approval_required"` with details in `approval_info`.
     Call `/api/v1/chat/approve` to continue.
     """
-    result = agent_service.send_message(
+    result = await agent_service.send_message(
         message=request.message,
         session_id=request.session_id,
         namespace=request.namespace,
@@ -55,7 +55,7 @@ async def approve_action(
     Must be called after a `send_message` response with
     `type: "approval_required"`.
     """
-    result = agent_service.approve_action(
+    result = await agent_service.approve_action(
         session_id=request.session_id,
         approved=request.approved,
     )

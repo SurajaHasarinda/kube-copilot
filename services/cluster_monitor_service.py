@@ -143,7 +143,7 @@ class ClusterMonitorService:
         active_keys: set = set()
 
         try:
-            namespaces = core_v1_client.list_namespace().items
+            namespaces = core_v1_client.list_namespace(_request_timeout=10).items
         except ApiException:
             return new_anomalies
 
@@ -180,7 +180,7 @@ class ClusterMonitorService:
         """Detect pod-level anomalies."""
         anomalies = []
         try:
-            pods = core_v1_client.list_namespaced_pod(namespace).items
+            pods = core_v1_client.list_namespaced_pod(namespace, _request_timeout=10).items
         except ApiException:
             return anomalies
 
@@ -280,7 +280,7 @@ class ClusterMonitorService:
         """Detect deployment-level anomalies."""
         anomalies = []
         try:
-            deployments = apps_v1_client.list_namespaced_deployment(namespace).items
+            deployments = apps_v1_client.list_namespaced_deployment(namespace, _request_timeout=10).items
         except ApiException:
             return anomalies
 
@@ -332,7 +332,7 @@ class ClusterMonitorService:
         """Detect abnormal K8s warning events."""
         anomalies = []
         try:
-            events = core_v1_client.list_namespaced_event(namespace).items
+            events = core_v1_client.list_namespaced_event(namespace, _request_timeout=10).items
         except ApiException:
             return anomalies
 
