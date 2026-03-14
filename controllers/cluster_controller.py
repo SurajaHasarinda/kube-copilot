@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, Depends, Query, Path
 
 from config.auth import verify_jwt_token
@@ -14,7 +16,7 @@ async def get_cluster_structure(token_payload: dict = Depends(verify_jwt_token))
     Get the full cluster structure including namespaces, deployments, pods,
     services, configmaps, and secrets in a hierarchical format.
     """
-    structure = cluster_service.get_cluster_structure()
+    structure = await asyncio.to_thread(cluster_service.get_cluster_structure)
     return structure
 
 
@@ -24,7 +26,7 @@ async def scan_cluster(token_payload: dict = Depends(verify_jwt_token)):
     Trigger a full cluster scan for abnormal behaviors.
     Returns newly detected anomalies.
     """
-    new_anomalies = cluster_monitor_service.scan_cluster()
+    new_anomalies = await asyncio.to_thread(cluster_monitor_service.scan_cluster)
     return {
         "scanned": True,
         "new_anomalies": len(new_anomalies),
@@ -42,8 +44,8 @@ async def list_anomalies(
     """Retrieve detected cluster anomalies, newest first."""
     ns = namespace or None
     sev = severity or None
-    rows = cluster_monitor_service.get_anomalies(namespace=ns, severity=sev, limit=limit)
-    stats = cluster_monitor_service.get_anomaly_stats()
+    rows = await asyncio.to_thread(cluster_monitor_service.get_anomalies, namespace=ns, severity=sev, limit=limit)
+    stats = await asyncio.to_thread(cluster_monitor_service.get_anomaly_stats)
     return AnomalyListResponse(
         anomalies=[AnomalyRecord(**row) for row in rows],
         stats=stats,
@@ -53,7 +55,7 @@ async def list_anomalies(
 @router.get("/anomalies/stats", response_model=AnomalyStatsResponse)
 async def anomaly_stats(token_payload: dict = Depends(verify_jwt_token)):
     """Get anomaly counts by severity."""
-    stats = cluster_monitor_service.get_anomaly_stats()
+    stats = await asyncio.to_thread(cluster_monitor_service.get_anomaly_stats)
     return AnomalyStatsResponse(**stats)
 
 
@@ -63,7 +65,7 @@ async def get_anomaly(
     token_payload: dict = Depends(verify_jwt_token),
 ):
     """Retrieve a single anomaly record including full logs."""
-    record = cluster_monitor_service.get_anomaly_by_id(anomaly_id)
+    record = await asyncio.to_thread(cluster_monitor_service.get_anomaly_by_id, anomaly_id)
     if not record:
         return {"error": "Anomaly not found"}
     return record
@@ -75,5 +77,5 @@ async def resolve_anomaly(
     token_payload: dict = Depends(verify_jwt_token),
 ):
     """Mark an anomaly as resolved."""
-    success = cluster_monitor_service.resolve_anomaly(anomaly_id)
+    success = await asyncio.to_thread(cluster_monitor_service.resolve_anomaly, anomaly_id)
     return {"resolved": success}

@@ -1,6 +1,9 @@
 from kubernetes.client.rest import ApiException
 from k8s_tools.client import core_v1_client, apps_v1_client
 
+# All K8s API calls use this timeout (seconds) to prevent hangs.
+_TIMEOUT = 10
+
 
 def list_resources(namespace: str, resource_type: str) -> str:
     """
@@ -16,7 +19,7 @@ def list_resources(namespace: str, resource_type: str) -> str:
 
     try:
         if resource_type == "pods":
-            items = core_v1_client.list_namespaced_pod(namespace).items
+            items = core_v1_client.list_namespaced_pod(namespace, _request_timeout=_TIMEOUT).items
             if not items:
                 return f"No pods found in namespace '{namespace}'."
             lines = [f"{'NAME':<50} {'STATUS':<18} {'RESTARTS':<10} {'AGE'}"]
@@ -37,7 +40,7 @@ def list_resources(namespace: str, resource_type: str) -> str:
             return "\n".join(lines)
 
         elif resource_type == "deployments":
-            items = apps_v1_client.list_namespaced_deployment(namespace).items
+            items = apps_v1_client.list_namespaced_deployment(namespace, _request_timeout=_TIMEOUT).items
             if not items:
                 return f"No deployments found in namespace '{namespace}'."
             lines = [f"{'NAME':<45} {'READY':<12} {'UP-TO-DATE':<12} {'AVAILABLE':<12} {'AGE'}"]
@@ -52,7 +55,7 @@ def list_resources(namespace: str, resource_type: str) -> str:
             return "\n".join(lines)
 
         elif resource_type == "services":
-            items = core_v1_client.list_namespaced_service(namespace).items
+            items = core_v1_client.list_namespaced_service(namespace, _request_timeout=_TIMEOUT).items
             if not items:
                 return f"No services found in namespace '{namespace}'."
             lines = [f"{'NAME':<40} {'TYPE':<18} {'CLUSTER-IP':<18} {'PORTS'}"]
@@ -68,7 +71,7 @@ def list_resources(namespace: str, resource_type: str) -> str:
             return "\n".join(lines)
 
         elif resource_type == "events":
-            items = core_v1_client.list_namespaced_event(namespace).items
+            items = core_v1_client.list_namespaced_event(namespace, _request_timeout=_TIMEOUT).items
             if not items:
                 return f"No events found in namespace '{namespace}'."
             # Show last 30 events, most recent first
@@ -87,7 +90,7 @@ def list_resources(namespace: str, resource_type: str) -> str:
             return "\n".join(lines)
 
         elif resource_type == "configmaps":
-            items = core_v1_client.list_namespaced_config_map(namespace).items
+            items = core_v1_client.list_namespaced_config_map(namespace, _request_timeout=_TIMEOUT).items
             if not items:
                 return f"No configmaps found in namespace '{namespace}'."
             lines = [f"{'NAME':<50} {'DATA KEYS':<40} {'AGE'}"]
@@ -100,7 +103,7 @@ def list_resources(namespace: str, resource_type: str) -> str:
             return "\n".join(lines)
 
         elif resource_type == "secrets":
-            items = core_v1_client.list_namespaced_secret(namespace).items
+            items = core_v1_client.list_namespaced_secret(namespace, _request_timeout=_TIMEOUT).items
             if not items:
                 return f"No secrets found in namespace '{namespace}'."
             lines = [f"{'NAME':<50} {'TYPE':<35} {'AGE'}"]
@@ -113,7 +116,7 @@ def list_resources(namespace: str, resource_type: str) -> str:
             return "\n".join(lines)
 
         elif resource_type == "replicasets":
-            items = apps_v1_client.list_namespaced_replica_set(namespace).items
+            items = apps_v1_client.list_namespaced_replica_set(namespace, _request_timeout=_TIMEOUT).items
             if not items:
                 return f"No replicasets found in namespace '{namespace}'."
             lines = [f"{'NAME':<55} {'DESIRED':<10} {'CURRENT':<10} {'READY':<10} {'AGE'}"]
@@ -128,7 +131,7 @@ def list_resources(namespace: str, resource_type: str) -> str:
             return "\n".join(lines)
 
         elif resource_type in ("daemonsets", "ds"):
-            items = apps_v1_client.list_namespaced_daemon_set(namespace).items
+            items = apps_v1_client.list_namespaced_daemon_set(namespace, _request_timeout=_TIMEOUT).items
             if not items:
                 return f"No daemonsets found in namespace '{namespace}'."
             lines = [f"{'NAME':<50} {'DESIRED':<10} {'CURRENT':<10} {'READY':<10} {'AGE'}"]
@@ -143,7 +146,7 @@ def list_resources(namespace: str, resource_type: str) -> str:
             return "\n".join(lines)
 
         elif resource_type in ("statefulsets", "sts"):
-            items = apps_v1_client.list_namespaced_stateful_set(namespace).items
+            items = apps_v1_client.list_namespaced_stateful_set(namespace, _request_timeout=_TIMEOUT).items
             if not items:
                 return f"No statefulsets found in namespace '{namespace}'."
             lines = [f"{'NAME':<50} {'READY':<12} {'AGE'}"]
@@ -156,7 +159,7 @@ def list_resources(namespace: str, resource_type: str) -> str:
             return "\n".join(lines)
 
         elif resource_type == "namespaces":
-            items = core_v1_client.list_namespace().items
+            items = core_v1_client.list_namespace(_request_timeout=_TIMEOUT).items
             if not items:
                 return "No namespaces found."
             lines = [f"{'NAME':<35} {'STATUS':<12} {'AGE'}"]
@@ -188,7 +191,7 @@ def get_pod_logs(namespace: str, pod_name: str) -> str:
     If the pod has multiple containers, logs from each are concatenated.
     """
     try:
-        pod = core_v1_client.read_namespaced_pod(pod_name, namespace)
+        pod = core_v1_client.read_namespaced_pod(pod_name, namespace, _request_timeout=_TIMEOUT)
         containers = [c.name for c in pod.spec.containers]
 
         all_logs: list[str] = []
@@ -200,6 +203,7 @@ def get_pod_logs(namespace: str, pod_name: str) -> str:
                     namespace,
                     container=container,
                     tail_lines=50,
+                    _request_timeout=_TIMEOUT,
                 )
                 all_logs.append(f"{header}\n{logs or '(no output)'}")
             except ApiException as e:
@@ -225,7 +229,7 @@ def describe_resource(namespace: str, resource_type: str, name: str) -> str:
 
     try:
         if resource_type == "pod":
-            pod = core_v1_client.read_namespaced_pod(name, namespace)
+            pod = core_v1_client.read_namespaced_pod(name, namespace, _request_timeout=_TIMEOUT)
             sections = [f"Pod: {name}", f"Namespace: {namespace}"]
             sections.append(f"Status: {pod.status.phase}")
             sections.append(f"Node: {pod.spec.node_name}")
@@ -259,7 +263,7 @@ def describe_resource(namespace: str, resource_type: str, name: str) -> str:
             return "\n".join(sections)
 
         elif resource_type == "deployment":
-            dep = apps_v1_client.read_namespaced_deployment(name, namespace)
+            dep = apps_v1_client.read_namespaced_deployment(name, namespace, _request_timeout=_TIMEOUT)
             sections = [f"Deployment: {name}", f"Namespace: {namespace}"]
             sections.append(f"Replicas: {dep.status.ready_replicas or 0}/{dep.spec.replicas or 0}")
             sections.append(f"Strategy: {dep.spec.strategy.type}")
@@ -286,7 +290,7 @@ def describe_resource(namespace: str, resource_type: str, name: str) -> str:
             return "\n".join(sections)
 
         elif resource_type == "service":
-            svc = core_v1_client.read_namespaced_service(name, namespace)
+            svc = core_v1_client.read_namespaced_service(name, namespace, _request_timeout=_TIMEOUT)
             sections = [f"Service: {name}", f"Namespace: {namespace}"]
             sections.append(f"Type: {svc.spec.type}")
             sections.append(f"Cluster IP: {svc.spec.cluster_ip}")
@@ -295,7 +299,7 @@ def describe_resource(namespace: str, resource_type: str, name: str) -> str:
 
             # Check endpoints
             try:
-                endpoints = core_v1_client.read_namespaced_endpoints(name, namespace)
+                endpoints = core_v1_client.read_namespaced_endpoints(name, namespace, _request_timeout=_TIMEOUT)
                 addr_count = sum(
                     len(subset.addresses or [])
                     for subset in (endpoints.subsets or [])
@@ -307,7 +311,7 @@ def describe_resource(namespace: str, resource_type: str, name: str) -> str:
             return "\n".join(sections)
 
         elif resource_type == "node":
-            node = core_v1_client.read_node(name)
+            node = core_v1_client.read_node(name, _request_timeout=_TIMEOUT)
             sections = [f"Node: {name}"]
 
             # Conditions
@@ -347,7 +351,7 @@ def _get_events_for(namespace: str, kind: str, name: str) -> list[str]:
     try:
         field_selector = f"involvedObject.kind={kind},involvedObject.name={name}"
         events = core_v1_client.list_namespaced_event(
-            namespace, field_selector=field_selector
+            namespace, field_selector=field_selector, _request_timeout=_TIMEOUT
         ).items
         events.sort(
             key=lambda e: e.last_timestamp or e.metadata.creation_timestamp,
