@@ -23,17 +23,14 @@ class AuthService:
                     )
                 ''')
                 
-                # Check for existing email column to handle migrations
                 cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name='users' AND column_name='email'")
                 if not cur.fetchone():
                     cur.execute("ALTER TABLE users ADD COLUMN email TEXT")
 
-                # Check for notifications_enabled column
                 cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name='users' AND column_name='notifications_enabled'")
                 if not cur.fetchone():
                     cur.execute("ALTER TABLE users ADD COLUMN notifications_enabled BOOLEAN DEFAULT TRUE")
                 
-                # Check if we need to seed the default admin
                 cur.execute('SELECT COUNT(*) as c FROM users')
                 count = cur.fetchone()[0]
                 if count == 0:

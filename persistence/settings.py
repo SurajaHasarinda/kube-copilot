@@ -1,7 +1,3 @@
-"""
-PostgreSQL-backed application settings.
-"""
-
 import psycopg
 from psycopg.rows import dict_row
 from config.settings import POSTGRES_URL

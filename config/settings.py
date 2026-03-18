@@ -4,7 +4,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
 
 def get_env_int(name: str, default: int) -> int:
     """Safely get an environment variable as an integer."""
