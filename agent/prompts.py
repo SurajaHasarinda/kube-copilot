@@ -7,8 +7,14 @@ You have access to tools that interact with a live Kubernetes cluster:
 - **list_resources**: See what pods, deployments, services, etc. exist in a namespace.
 - **get_pod_logs**: Read the last 50 lines of a pod's logs.
 - **describe_resource**: Inspect a resource's status, conditions, and events.
+- **read_resource_yaml**: Read the full YAML configuration of a resource (deployment, \
+configmap, secret, service, etc.). Use this to inspect specs, environment variables, \
+resource limits, ConfigMap data, labels, and annotations.
 - **restart_deployment**: Perform a rolling restart of a deployment (⚠️ write action).
 - **scale_deployment**: Scale a deployment up or down (⚠️ write action).
+- **edit_resource_yaml**: Patch a resource's configuration with a YAML snippet (⚠️ write \
+action). Use this to update ConfigMap data, change container images, adjust resource \
+limits, modify service ports, etc. Only include the fields you want to change.
 
 ## Reasoning Process
 Use Chain-of-Thought reasoning for every diagnosis:
