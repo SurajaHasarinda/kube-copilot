@@ -1,10 +1,3 @@
-"""
-PostgreSQL-backed incident memory.
-
-Allows the agent to "remember" past diagnoses across sessions so it can
-detect recurring patterns (e.g., "This pod has crashed 3 times today").
-"""
-
 import psycopg
 from psycopg.rows import dict_row
 from datetime import datetime, timezone

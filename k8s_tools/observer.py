@@ -1,7 +1,6 @@
 from kubernetes.client.rest import ApiException
 from k8s_tools.client import core_v1_client, apps_v1_client
 
-# All K8s API calls use this timeout (seconds) to prevent hangs.
 _TIMEOUT = 10
 
 
@@ -32,7 +31,6 @@ def list_resources(namespace: str, resource_type: str) -> str:
                     for cs in (pod.status.container_statuses or [])
                 )
                 age = pod.metadata.creation_timestamp.strftime("%Y-%m-%d %H:%M:%S")
-                # Check for waiting containers (e.g., ImagePullBackOff)
                 for cs in pod.status.container_statuses or []:
                     if cs.state and cs.state.waiting:
                         phase = cs.state.waiting.reason or phase
@@ -74,7 +72,6 @@ def list_resources(namespace: str, resource_type: str) -> str:
             items = core_v1_client.list_namespaced_event(namespace, _request_timeout=_TIMEOUT).items
             if not items:
                 return f"No events found in namespace '{namespace}'."
-            # Show last 30 events, most recent first
             items.sort(
                 key=lambda e: e.last_timestamp or e.metadata.creation_timestamp,
                 reverse=True,

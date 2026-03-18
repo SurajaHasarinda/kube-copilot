@@ -24,7 +24,6 @@ def get_k8s_clients() -> tuple[client.CoreV1Api, client.AppsV1Api]:
     return core_v1, apps_v1
 
 
-# Module-level singletons — created once, reused everywhere.
 core_v1_client, apps_v1_client = get_k8s_clients()
 
 

@@ -1,18 +1,11 @@
 from datetime import datetime, timedelta, timezone
-
 from fastapi import HTTPException, Security, status, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
-
 from config.settings import JWT_SECRET_KEY, JWT_ALGORITHM, JWT_ACCESS_TOKEN_EXPIRE_MINUTES
 
 
-# ── Security schemes ─────────────────────────────────────────────────────────
-
 bearer_scheme = HTTPBearer(auto_error=False)
-
-
-# ── JWT helpers ───────────────────────────────────────────────────────────────
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
