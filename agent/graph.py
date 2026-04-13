@@ -24,12 +24,15 @@ Flow:
   │  cancel   │ ──► back to agent
   └───────────┘
 
-The approval gate uses LangGraph's `interrupt()` to pause execution.
+The approval gate uses LangGraph's ``interrupt()`` to pause execution.
 Both the CLI and the API resume execution by passing a boolean via
-`Command(resume=True/False)`.
+``Command(resume=True/False)``.
 """
 
 import json
+import logging
+import traceback
+
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import AIMessage, ToolMessage, SystemMessage
 from langgraph.graph import StateGraph, END
@@ -44,12 +47,14 @@ from agent.prompts import SYSTEM_PROMPT
 from persistence.memory import save_incident
 from persistence.settings import get_setting
 
+logger = logging.getLogger(__name__)
 
 # Build a lookup: tool_name → callable
 tool_map = {t.name: t for t in ALL_TOOLS}
 
 
 # ── Graph Nodes ──────────────────────────────────────────────────────────────
+
 
 def agent_node(state: AgentState) -> dict:
     """
@@ -65,8 +70,14 @@ def agent_node(state: AgentState) -> dict:
     model_name = get_setting("GEMINI_MODEL", GEMINI_MODEL)
 
     if not api_key or api_key == "setup-in-ui":
-        from langchain_core.messages import AIMessage
-        return {"messages": [AIMessage(content="Hello! It seems the Gemini API key is not configured. Please configure it in the Settings page to start chatting.")]}
+        return {
+            "messages": [
+                AIMessage(
+                    content="Hello! It seems the Gemini API key is not configured. "
+                    "Please configure it in the Settings page to start chatting."
+                )
+            ]
+        }
 
     llm = ChatGoogleGenerativeAI(
         model=model_name,
@@ -78,9 +89,13 @@ def agent_node(state: AgentState) -> dict:
 
     try:
         response = llm_with_tools.invoke(messages)
-    except Exception as e:
-        from langchain_core.messages import AIMessage
-        return {"messages": [AIMessage(content=f"Error connecting to AI Provider: {str(e)}")]}
+    except Exception as exc:
+        logger.exception("LLM invocation failed")
+        return {
+            "messages": [
+                AIMessage(content=f"Error connecting to AI Provider: {exc}")
+            ]
+        }
 
     return {"messages": [response]}
 
@@ -92,12 +107,14 @@ def route_after_agent(state: AgentState) -> str:
     - If tool calls contain a write action → go to approval gate.
     - Otherwise → execute read-only tools.
     """
-    last_message: AIMessage = state["messages"][-1]
+    last_message = state["messages"][-1]
 
-    if not last_message.tool_calls:
+    # Only AIMessages can have tool_calls; guard against other types.
+    tool_calls = getattr(last_message, "tool_calls", None)
+    if not tool_calls:
         return "end"
 
-    for tc in last_message.tool_calls:
+    for tc in tool_calls:
         if tc["name"] in WRITE_TOOL_NAMES:
             return "approval_gate"
 
@@ -107,16 +124,30 @@ def route_after_agent(state: AgentState) -> str:
 def execute_tools_node(state: AgentState) -> dict:
     """
     Execute all tool calls from the last AI message and return ToolMessages.
+
+    Each tool invocation is wrapped in a try/except so that a single
+    failing tool does not crash the entire graph — the error is returned
+    as a ToolMessage and the LLM can decide how to proceed.
     """
     last_message: AIMessage = state["messages"][-1]
     tool_messages = []
 
     for tc in last_message.tool_calls:
-        tool_fn = tool_map.get(tc["name"])
+        tool_name = tc["name"]
+        tool_fn = tool_map.get(tool_name)
+
         if tool_fn is None:
-            result = f"Unknown tool: {tc['name']}"
+            result = f"Error: unknown tool '{tool_name}'."
         else:
-            result = tool_fn.invoke(tc["args"])
+            try:
+                result = tool_fn.invoke(tc["args"])
+            except Exception as exc:
+                logger.exception("Tool '%s' raised an exception", tool_name)
+                result = (
+                    f"Error executing tool '{tool_name}': {exc}\n"
+                    f"{traceback.format_exc()}"
+                )
+
         tool_messages.append(
             ToolMessage(content=str(result), tool_call_id=tc["id"])
         )
@@ -128,20 +159,18 @@ def approval_gate_node(state: AgentState) -> dict:
     """
     Human-in-the-loop gate for write actions.
 
-    Uses LangGraph's `interrupt()` to pause graph execution and surface
+    Uses LangGraph's ``interrupt()`` to pause graph execution and surface
     the proposed plan to the caller (CLI or API).  The caller resumes by
     passing a boolean (True = approved, False = denied) via
-    `Command(resume=<bool>)`.
+    ``Command(resume=<bool>)``.
     """
     last_message: AIMessage = state["messages"][-1]
     write_calls = [
         tc for tc in last_message.tool_calls if tc["name"] in WRITE_TOOL_NAMES
     ]
 
-    # Build the proposal payload that gets surfaced to the caller
-    actions = []
-    for tc in write_calls:
-        actions.append({"tool": tc["name"], "args": tc["args"]})
+    # Build the proposal payload that gets surfaced to the caller.
+    actions = [{"tool": tc["name"], "args": tc["args"]} for tc in write_calls]
 
     plan = {
         "type": "approval_required",
@@ -149,9 +178,9 @@ def approval_gate_node(state: AgentState) -> dict:
         "actions": actions,
     }
 
-    # `interrupt()` halts the graph and returns `plan` to the caller.
-    # When the caller resumes with `Command(resume=True/False)`, the
-    # return value of `interrupt()` is that boolean.
+    # ``interrupt()`` halts the graph and returns ``plan`` to the caller.
+    # When the caller resumes with ``Command(resume=True/False)``, the
+    # return value of ``interrupt()`` is that boolean.
     approved = interrupt(plan)
 
     return {
@@ -185,12 +214,23 @@ def cancel_action_node(state: AgentState) -> dict:
                 )
             )
         else:
-            # Execute any read-only tool calls that were bundled with the write
+            # Execute any read-only tool calls that were bundled with the write.
             tool_fn = tool_map.get(tc["name"])
             if tool_fn:
-                result = tool_fn.invoke(tc["args"])
+                try:
+                    result = tool_fn.invoke(tc["args"])
+                except Exception as exc:
+                    logger.exception("Tool '%s' failed during cancel", tc["name"])
+                    result = f"Error executing tool '{tc['name']}': {exc}"
                 tool_messages.append(
                     ToolMessage(content=str(result), tool_call_id=tc["id"])
+                )
+            else:
+                tool_messages.append(
+                    ToolMessage(
+                        content=f"Error: unknown tool '{tc['name']}'.",
+                        tool_call_id=tc["id"],
+                    )
                 )
 
     return {
@@ -204,30 +244,49 @@ def save_memory_node(state: AgentState) -> dict:
     """
     After the agent produces a final answer, persist the incident
     in the PostgreSQL database for future reference.
+
+    This node is best-effort — failures are logged but never propagated,
+    because the user's response has already been determined.
     """
-    messages = state["messages"]
-    user_query = ""
-    for msg in messages:
-        if hasattr(msg, "type") and msg.type == "human":
-            user_query = msg.content
-            if isinstance(user_query, list):
-                user_query = " ".join(str(x.get("text", x)) if isinstance(x, dict) else str(x) for x in user_query)
-            elif not isinstance(user_query, str):
-                user_query = str(user_query)
-            break
+    try:
+        messages = state["messages"]
+        user_query = ""
+        for msg in messages:
+            if getattr(msg, "type", None) == "human":
+                user_query = msg.content
+                if isinstance(user_query, list):
+                    user_query = " ".join(
+                        str(x.get("text", x)) if isinstance(x, dict) else str(x)
+                        for x in user_query
+                    )
+                elif not isinstance(user_query, str):
+                    user_query = str(user_query)
+                break
 
-    final_answer = messages[-1].content if messages else ""
-    if isinstance(final_answer, list):
-        final_answer = " ".join(str(x.get("text", x)) if isinstance(x, dict) else str(x) for x in final_answer)
-    elif not isinstance(final_answer, str):
-        final_answer = str(final_answer)
+        final_answer = ""
+        for msg in reversed(messages):
+            if getattr(msg, "type", None) == "ai":
+                content = msg.content
+                if isinstance(content, list):
+                    content = " ".join(
+                        str(x.get("text", x)) if isinstance(x, dict) else str(x)
+                        for x in content
+                    )
+                elif not isinstance(content, str):
+                    content = str(content)
+                text = content.strip()
+                if text:
+                    final_answer = text
+                    break
 
-    if user_query and final_answer:
-        save_incident(
-            namespace=state["current_namespace"],
-            query=user_query,
-            diagnosis=final_answer[:2000],
-        )
+        if user_query and final_answer:
+            save_incident(
+                namespace=state["current_namespace"],
+                query=user_query,
+                diagnosis=final_answer[:2000],
+            )
+    except Exception:
+        logger.exception("Failed to save incident to memory (non-fatal)")
 
     return {}
 
@@ -241,7 +300,7 @@ def build_graph(checkpointer=None):
 
     Args:
         checkpointer: A LangGraph checkpointer for persisting graph state
-                      across interrupt/resume cycles. If None, a MemorySaver
+                      across interrupt/resume cycles. If None, a PostgresSaver
                       is created automatically.
 
     Returns:
@@ -250,11 +309,11 @@ def build_graph(checkpointer=None):
     if checkpointer is None:
         import psycopg
         from config.settings import POSTGRES_URL
-        
+
         with psycopg.connect(POSTGRES_URL, autocommit=True) as conn:
             temp_checkpointer = PostgresSaver(conn)
             temp_checkpointer.setup()
-            
+
         checkpointer = PostgresSaver(get_pool())
 
     graph = StateGraph(AgentState)

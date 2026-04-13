@@ -7,6 +7,7 @@ Usage:
 """
 
 import argparse
+import logging
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -14,6 +15,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config.settings import API_HOST, API_PORT, CORS_ORIGINS, GOOGLE_API_KEY
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
 from controllers import (
     auth_controller,
