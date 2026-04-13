@@ -60,7 +60,11 @@ def agent_node(state: AgentState) -> dict:
     """
     Call the LLM with the current message history.
     The LLM may respond with text, tool calls, or both.
+
+    Retries transient Gemini failures up to 3 times with backoff.
     """
+    import time
+
     sys_msg = SystemMessage(
         content=SYSTEM_PROMPT.format(namespace=state["current_namespace"])
     )
@@ -84,20 +88,35 @@ def agent_node(state: AgentState) -> dict:
         google_api_key=api_key,
         temperature=0.1,
         convert_system_message_to_human=True,
+        timeout=120,
     )
     llm_with_tools = llm.bind_tools(ALL_TOOLS)
 
-    try:
-        response = llm_with_tools.invoke(messages)
-    except Exception as exc:
-        logger.exception("LLM invocation failed")
-        return {
-            "messages": [
-                AIMessage(content=f"Error connecting to AI Provider: {exc}")
-            ]
-        }
+    max_retries = 3
+    last_error = None
 
-    return {"messages": [response]}
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = llm_with_tools.invoke(messages)
+            return {"messages": [response]}
+        except Exception as exc:
+            last_error = exc
+            logger.warning(
+                "LLM invocation failed (attempt %d/%d): %s",
+                attempt, max_retries, exc,
+            )
+            if attempt < max_retries:
+                time.sleep(2 ** attempt)  # 2s, 4s backoff
+
+    logger.error("LLM invocation failed after %d retries", max_retries)
+    return {
+        "messages": [
+            AIMessage(
+                content=f"I'm having trouble connecting to the AI service. "
+                f"Please try again in a moment. (Error: {last_error})"
+            )
+        ]
+    }
 
 
 def route_after_agent(state: AgentState) -> str:

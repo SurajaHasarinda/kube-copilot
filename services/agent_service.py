@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import threading
 from dataclasses import dataclass
 
 from langchain_core.messages import HumanMessage
@@ -11,18 +12,15 @@ from config.settings import DEFAULT_NAMESPACE
 
 logger = logging.getLogger(__name__)
 
+# Cloudflare and similar reverse proxies drop idle SSE connections.
+# Sending a comment every 15 seconds prevents that.
+_HEARTBEAT_SECONDS = 15
+_SSE_HEARTBEAT = ": keepalive\n\n"
+
 
 @dataclass
 class AgentResult:
-    """
-    Unified result from the agent service.
-
-    Attributes:
-        session_id:    The session this result belongs to.
-        type:          One of 'response', 'approval_required', 'error'.
-        content:       The agent's text response or error message.
-        approval_info: Details of the pending write action (if type == 'approval_required').
-    """
+    """Unified result from the agent service."""
 
     session_id: str
     type: str  # 'response' | 'approval_required' | 'error'
@@ -31,12 +29,7 @@ class AgentResult:
 
 
 def _extract_text(content) -> str:
-    """Safely extract a plain-text string from LLM message content.
-
-    Gemini may return content as a string, a list of content blocks
-    (dicts with a ``text`` key), or occasionally another type.
-    This helper normalises all variants to a single string.
-    """
+    """Safely extract a plain-text string from LLM message content."""
     if isinstance(content, str):
         return content
     if isinstance(content, list):
@@ -76,22 +69,13 @@ class AgentService:
         session_id: str = "",
         namespace: str = "",
     ) -> AgentResult:
-        """
-        Send a user message to the agent and return the result.
-
-        Runs the synchronous graph in a thread pool to avoid blocking the
-        event loop (which would starve health probes and other requests).
-        """
+        """Send a user message and return the result (non-streaming)."""
         return await asyncio.to_thread(
             self._send_message_sync, message, session_id, namespace
         )
 
     async def approve_action(self, session_id: str, approved: bool) -> AgentResult:
-        """
-        Approve or deny a pending write action and resume the agent.
-
-        Runs in a thread pool to avoid blocking the event loop.
-        """
+        """Approve or deny a pending write action."""
         return await asyncio.to_thread(
             self._approve_action_sync, session_id, approved
         )
@@ -103,17 +87,17 @@ class AgentService:
         namespace: str = "",
     ):
         """
-        Async generator for Server-Sent Events (SSE).
+        Async generator that yields SSE frames.
 
-        The synchronous ``graph.stream()`` runs in a background thread.
-        An ``asyncio.Queue`` bridges SSE frames back to this async generator
-        so the event loop is never blocked.
+        The synchronous graph runs in a background thread. An asyncio.Event
+        plus a thread-safe list bridge events back to the async generator.
+        A heartbeat keeps the connection alive through Cloudflare.
         """
         ns = namespace or DEFAULT_NAMESPACE
         session = session_service.get_or_create_session(session_id, ns)
         session.message_count += 1
 
-        # Send initial metadata immediately.
+        # Send metadata immediately so the frontend gets the session ID.
         yield self._sse_frame({"type": "metadata", "session_id": session.session_id})
 
         config = {"configurable": {"thread_id": session.thread_id}}
@@ -124,26 +108,34 @@ class AgentService:
             "current_namespace": session.namespace,
         }
 
-        queue: asyncio.Queue[str | None] = asyncio.Queue()
+        # Shared mutable state between the graph thread and the async generator.
+        # Using a list + lock + event avoids the asyncio.Queue item-loss bug
+        # that occurs when asyncio.wait_for cancels queue.get().
+        pending: list[str] = []
+        lock = threading.Lock()
+        new_event = asyncio.Event()
+        finished = False
         loop = asyncio.get_running_loop()
 
+        def _push(frame: str):
+            """Thread-safe push: add a frame and wake the async consumer."""
+            with lock:
+                pending.append(frame)
+            loop.call_soon_threadsafe(new_event.set)
+
         def _run_graph():
-            """Runs in a background thread — safe to block here."""
-
-            def _put(item: str | None):
-                loop.call_soon_threadsafe(queue.put_nowait, item)
-
+            nonlocal finished
             try:
-                logger.info("[%s] Starting graph SSE stream", session.session_id)
+                logger.info("[%s] Starting graph stream", session.session_id)
+
                 for event in self.graph.stream(initial_state, config, stream_mode="updates"):
                     for node, state in event.items():
-                        logger.info("[%s] Node executed: %s", session.session_id, node)
+                        logger.info("[%s] Node: %s", session.session_id, node)
 
-                        # Emit a step event for each node so the UI shows progress.
+                        # Emit thought steps for the UI.
                         if node == "agent":
-                            _put(self._sse_frame({
-                                "type": "thought",
-                                "step": "thinking",
+                            _push(self._sse_frame({
+                                "type": "thought", "step": "thinking",
                                 "content": "Analyzing your request…",
                             }))
 
@@ -152,86 +144,88 @@ class AgentService:
                             for msg in msgs:
                                 if hasattr(msg, "tool_calls") and msg.tool_calls:
                                     for tc in msg.tool_calls:
-                                        _put(self._sse_frame({
-                                            "type": "thought",
-                                            "step": "tool_call",
+                                        _push(self._sse_frame({
+                                            "type": "thought", "step": "tool_call",
                                             "tool": tc["name"],
                                             "args": tc.get("args", {}),
                                             "content": f"Calling {tc['name']}",
                                         }))
                                 elif getattr(msg, "type", None) == "tool":
                                     tool_name = getattr(msg, "name", "unknown")
-                                    content_preview = _extract_text(msg.content)[:200]
-                                    _put(self._sse_frame({
-                                        "type": "thought",
-                                        "step": "tool_result",
-                                        "tool": tool_name,
-                                        "content": content_preview,
+                                    preview = _extract_text(msg.content)[:200]
+                                    _push(self._sse_frame({
+                                        "type": "thought", "step": "tool_result",
+                                        "tool": tool_name, "content": preview,
                                     }))
 
                         if node == "save_memory":
-                            _put(self._sse_frame({
-                                "type": "thought",
-                                "step": "done",
+                            _push(self._sse_frame({
+                                "type": "thought", "step": "done",
                                 "content": "Preparing response…",
                             }))
 
-                # Graph finished — build the final response.
+                # Graph completed — build the final response.
                 result = self._build_result_from_state(session, config)
                 session_service.save_session(session)
 
-                final_data: dict = {
+                final: dict = {
                     "session_id": result.session_id,
                     "type": result.type,
                     "content": result.content,
                     "approval_info": None,
                 }
                 if result.approval_info:
-                    final_data["approval_info"] = {
+                    final["approval_info"] = {
                         "message": result.approval_info.get("message", ""),
                         "actions": result.approval_info.get("actions", []),
                     }
-                _put(self._sse_frame(final_data))
+                _push(self._sse_frame(final))
 
             except Exception as exc:
-                logger.exception("[%s] Graph SSE stream error", session.session_id)
-                _put(self._sse_frame({
+                logger.exception("[%s] Graph stream error", session.session_id)
+                _push(self._sse_frame({
                     "session_id": session.session_id,
                     "type": "error",
                     "content": f"Agent error: {exc}",
                 }))
             finally:
-                _put(None)  # sentinel — tells the async side we're done
+                finished = True
+                loop.call_soon_threadsafe(new_event.set)
 
-        # Kick off the blocking work on a thread-pool thread.
-        thread_future = loop.run_in_executor(None, _run_graph)
+        # Start the graph in a background thread.
+        thread = threading.Thread(target=_run_graph, daemon=True)
+        thread.start()
 
-        # Cloudflare (and similar proxies) drop idle connections after ~100s.
-        # Sending a SSE comment every 15s keeps the connection alive.
-        HEARTBEAT_INTERVAL = 15  # seconds
-        SSE_HEARTBEAT = ": keepalive\n\n"
-
+        # Async consumer: drain pending frames and send heartbeats.
         try:
             while True:
+                # Wait for the background thread to push something,
+                # or time out and send a heartbeat.
                 try:
-                    item = await asyncio.wait_for(
-                        queue.get(), timeout=HEARTBEAT_INTERVAL
+                    await asyncio.wait_for(
+                        new_event.wait(), timeout=_HEARTBEAT_SECONDS
                     )
-                    if item is None:
-                        break
-                    yield item
                 except asyncio.TimeoutError:
-                    # No real event within the heartbeat window — send a
-                    # SSE comment to keep Cloudflare from closing the connection.
-                    yield SSE_HEARTBEAT
+                    # No events within the heartbeat window — send keepalive.
+                    yield _SSE_HEARTBEAT
+                    continue
+
+                # Drain all available frames.
+                new_event.clear()
+                with lock:
+                    frames = list(pending)
+                    pending.clear()
+
+                for frame in frames:
+                    yield frame
+
+                if finished:
+                    break
         finally:
-            await thread_future
+            thread.join(timeout=5)
 
     def get_session_history(self, session_id: str) -> list[dict]:
-        """
-        Get the message history for a session from the LangGraph checkpointer.
-        Returns a list of dicts with role and content.
-        """
+        """Get the message history for a session from the LangGraph checkpointer."""
         session = session_service.get_session(session_id)
         if not session:
             return []
@@ -332,12 +326,7 @@ class AgentService:
             )
 
     def _stream_graph(self, inputs, config: dict, session_id: str) -> None:
-        """
-        Run the graph to completion (or until an interrupt) using streaming,
-        logging node execution and tool calls along the way.
-
-        Raises on unrecoverable graph errors so callers can handle them.
-        """
+        """Run the graph to completion, logging along the way."""
         logger.info("[%s] Starting graph execution", session_id)
         for event in self.graph.stream(inputs, config, stream_mode="updates"):
             for node, state in event.items():
@@ -358,12 +347,7 @@ class AgentService:
         session: Session,
         config: dict,
     ) -> AgentResult:
-        """
-        Inspect the graph state after invocation and return an ``AgentResult``.
-
-        If the graph paused at an interrupt (approval gate), return an
-        ``approval_required`` result.  Otherwise return the final response.
-        """
+        """Inspect the graph state and return an AgentResult."""
         graph_state = self.graph.get_state(config)
         values = graph_state.values
 
@@ -391,7 +375,6 @@ class AgentService:
         session.has_pending_approval = False
         messages = values.get("messages", [])
 
-        # Walk backwards to find the last AI message with actual content.
         response_content = ""
         for msg in reversed(messages):
             if getattr(msg, "type", None) == "ai":
