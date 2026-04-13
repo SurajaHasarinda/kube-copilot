@@ -62,7 +62,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                         disabled={loading}
                         className="w-full bg-brand hover:bg-brand/80 text-white p-3 rounded font-medium transition-colors disabled:opacity-50 mt-2 cursor-pointer"
                     >
-                        {loading ? 'Authenticating...' : 'Connect to Agent'}
+                        {loading ? 'Authenticating...' : 'Login'}
                     </button>
                 </form>
             </div>
