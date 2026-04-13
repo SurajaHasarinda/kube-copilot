@@ -28,19 +28,22 @@ async def send_message(
     return _to_chat_response(result)
 
 
-@router.get("/stream")
+@router.post("/stream")
 async def stream_message(
-    message: str,
-    session_id: str = "",
-    namespace: str = "",
+    request: ChatRequest,
     token_payload: dict = Depends(verify_jwt_token),
 ):
     """
     Send a message to the agent using Server-Sent Events (SSE).
     Returns real-time updates as the agent executes tools and reasons.
+
+    Uses POST so the JWT stays in the Authorization header (not leaked
+    in the URL) and request bodies survive Cloudflare proxying.
     """
     return StreamingResponse(
-        agent_service.stream_message(message, session_id, namespace),
+        agent_service.stream_message(
+            request.message, request.session_id, request.namespace
+        ),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

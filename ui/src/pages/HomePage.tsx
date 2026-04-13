@@ -120,76 +120,112 @@ const HomePage: React.FC = () => {
         setIsThinking(true);
         setThoughtSteps([]);
 
-        const token = localStorage.getItem('token');
-        const encodedMessage = encodeURIComponent(userText);
-        const encodedSessionId = encodeURIComponent(sessionId);
-        const url = `/api/v1/chat/stream?message=${encodedMessage}&session_id=${encodedSessionId}&token=${token}`;
-
-        const eventSource = new EventSource(url);
-        let receivedFinalResponse = false;
-
-        // Placeholder agent message that we'll fill in when the final response arrives
-        let currentAgentMessage: Message = { role: 'agent', content: '' };
+        // Placeholder agent message we'll populate as events arrive.
+        const currentAgentMessage: Message = { role: 'agent', content: '' };
         setMessages(prev => [...prev, currentAgentMessage]);
         let messageIndex = -1;
 
-        eventSource.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-
-            if (data.type === 'metadata') {
-                if (data.session_id) setSessionId(data.session_id);
-                return;
-            }
-
-            if (data.type === 'thought') {
-                const step: ThoughtStep = {
-                    step: data.step || 'thinking',
-                    content: data.content || '',
-                    tool: data.tool,
-                    args: data.args,
-                    timestamp: Date.now(),
+        const finalize = (content?: string, approvalInfo?: ApprovalInfo | null) => {
+            setMessages(prev => {
+                const msgs = [...prev];
+                if (messageIndex === -1) messageIndex = msgs.length - 1;
+                msgs[messageIndex] = {
+                    ...msgs[messageIndex],
+                    content: content ?? msgs[messageIndex].content,
+                    approvalInfo: approvalInfo !== undefined ? approvalInfo : msgs[messageIndex].approvalInfo,
                 };
-                setThoughtSteps(prev => [...prev, step]);
+                return msgs;
+            });
+            setLoading(false);
+            setIsThinking(false);
+        };
+
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch('/api/v1/chat/stream', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    message: userText,
+                    session_id: sessionId,
+                    namespace: '',
+                }),
+            });
+
+            if (!res.ok || !res.body) {
+                finalize('❌ Failed to communicate with the agent.');
                 return;
             }
 
-            if (['response', 'error', 'approval_required'].includes(data.type)) {
-                receivedFinalResponse = true;
-                setMessages(prev => {
-                    const newMessages = [...prev];
-                    if (messageIndex === -1) messageIndex = newMessages.length - 1;
-                    currentAgentMessage.content = data.content || '';
-                    if (data.type === 'approval_required') {
-                        currentAgentMessage.approvalInfo = data.approval_info;
-                    }
-                    newMessages[messageIndex] = { ...currentAgentMessage };
-                    return newMessages;
-                });
-                setLoading(false);
-                setIsThinking(false);
-                eventSource.close();
-            }
-        };
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
 
-        eventSource.onerror = () => {
-            // EventSource fires onerror when the server closes the connection,
-            // which is normal after the final response. Only show an error if
-            // we never received the actual response.
-            eventSource.close();
-            if (!receivedFinalResponse) {
-                setMessages(prev => {
-                    const newMessages = [...prev];
-                    if (messageIndex === -1) messageIndex = newMessages.length - 1;
-                    newMessages[messageIndex] = {
-                        ...newMessages[messageIndex],
-                        content: newMessages[messageIndex].content || '❌ Failed to communicate with the agent.',
-                    };
-                    return newMessages;
-                });
-                setLoading(false);
-                setIsThinking(false);
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+
+                // SSE frames are separated by double newlines.
+                const parts = buffer.split('\n\n');
+                buffer = parts.pop() || '';
+
+                for (const part of parts) {
+                    // Each SSE frame has "data: {...}" lines.
+                    const dataLine = part
+                        .split('\n')
+                        .find(line => line.startsWith('data: '));
+                    if (!dataLine) continue;
+
+                    try {
+                        const data = JSON.parse(dataLine.slice(6));
+
+                        if (data.type === 'metadata') {
+                            if (data.session_id) setSessionId(data.session_id);
+                            continue;
+                        }
+
+                        if (data.type === 'thought') {
+                            setThoughtSteps(prev => [...prev, {
+                                step: data.step || 'thinking',
+                                content: data.content || '',
+                                tool: data.tool,
+                                args: data.args,
+                                timestamp: Date.now(),
+                            }]);
+                            continue;
+                        }
+
+                        if (['response', 'error', 'approval_required'].includes(data.type)) {
+                            const approval = data.type === 'approval_required' ? data.approval_info : null;
+                            finalize(data.content || '', approval);
+                        }
+                    } catch {
+                        // Skip malformed SSE frames.
+                    }
+                }
             }
-        };
+
+            // If we reach here without ever calling finalize, the stream
+            // ended without a final response — show a fallback.
+            setMessages(prev => {
+                if (messageIndex === -1) messageIndex = prev.length - 1;
+                if (!prev[messageIndex]?.content) {
+                    const msgs = [...prev];
+                    msgs[messageIndex] = { ...msgs[messageIndex], content: '⚠️ The agent finished without a response.' };
+                    return msgs;
+                }
+                return prev;
+            });
+            setLoading(false);
+            setIsThinking(false);
+        } catch {
+            finalize('❌ Failed to communicate with the agent.');
+        }
     };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
