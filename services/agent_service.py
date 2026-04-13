@@ -61,6 +61,10 @@ class AgentService:
         """Lazy-load the compiled graph from the server module."""
         if self._graph is None:
             from main import agent_graph
+            if agent_graph is None:
+                raise RuntimeError(
+                    "The agent is still starting up. Please try again in a few seconds."
+                )
             self._graph = agent_graph
         return self._graph
 

@@ -24,10 +24,12 @@ class SessionService:
     """Thread-safe PostgreSQL session store."""
 
     def __init__(self):
-        self._init_db()
+        self._db_ready = False
 
-    def _init_db(self):
-        """Ensure the sessions table exists."""
+    def _ensure_db(self):
+        """Ensure the sessions table exists (called lazily on first use)."""
+        if self._db_ready:
+            return
         with get_pool().connection() as conn:
             with conn.cursor() as cur:
                 cur.execute('''
@@ -40,6 +42,7 @@ class SessionService:
                     )
                 ''')
             conn.commit()
+        self._db_ready = True
 
     def _row_to_session(self, row) -> Session:
         return Session(
@@ -52,6 +55,7 @@ class SessionService:
 
     def create_session(self, namespace: str) -> Session:
         """Create a new session and return it."""
+        self._ensure_db()
         session_id = uuid.uuid4().hex[:12]
         created_at = datetime.now(timezone.utc).isoformat()
         
@@ -73,6 +77,7 @@ class SessionService:
 
     def get_session(self, session_id: str) -> Session | None:
         """Retrieve a session by ID, or None if not found."""
+        self._ensure_db()
         with get_pool().connection() as conn:
             with conn.cursor(row_factory=dict_row) as cur:
                 row = cur.execute('SELECT * FROM sessions WHERE session_id = %s', (session_id,)).fetchone()
@@ -90,6 +95,7 @@ class SessionService:
         
     def save_session(self, session: Session):
         """Persist changes to the session object."""
+        self._ensure_db()
         with get_pool().connection() as conn:
             with conn.cursor() as cur:
                 cur.execute('''
@@ -101,6 +107,7 @@ class SessionService:
 
     def delete_session(self, session_id: str) -> bool:
         """Delete a session. Returns True if found and deleted."""
+        self._ensure_db()
         with get_pool().connection() as conn:
             with conn.cursor() as cur:
                 cur.execute('DELETE FROM sessions WHERE session_id = %s', (session_id,))
@@ -110,6 +117,7 @@ class SessionService:
 
     def list_sessions(self) -> list[Session]:
         """Return all active sessions."""
+        self._ensure_db()
         with get_pool().connection() as conn:
             with conn.cursor(row_factory=dict_row) as cur:
                 rows = cur.execute('SELECT * FROM sessions ORDER BY created_at DESC').fetchall()
@@ -118,6 +126,7 @@ class SessionService:
     @property
     def count(self) -> int:
         """Return the total number of sessions."""
+        self._ensure_db()
         with get_pool().connection() as conn:
             with conn.cursor() as cur:
                 row = cur.execute('SELECT COUNT(*) FROM sessions').fetchone()

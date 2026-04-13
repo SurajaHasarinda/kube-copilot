@@ -35,45 +35,52 @@ from controllers import (
 
 # ── Module-level graph reference (set during lifespan) ────────────────────────
 agent_graph = None
+_app_ready = False
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     """
-    Startup: build the agent graph once.
-    Shutdown: cleanup (currently a no-op).
+    Startup: kick off heavy init (graph build, DB setup) in a background
+    thread so Uvicorn can bind the port and pass K8s probes immediately.
+    Shutdown: cleanup.
     """
-    global agent_graph
-
-    from agent.graph import build_graph
-    agent_graph = build_graph()
-    print("✅ Agent graph compiled and ready.")
-
-    # Start the periodic anomaly scanner in the background
     import threading
     import time
-    from services.cluster_monitor_service import cluster_monitor_service
 
-    def run_periodic_scan():
-        # Wait for the app to fully start up before scanning
+    def _background_init():
+        """Run all blocking startup work off the main thread."""
+        global agent_graph, _app_ready
+
+        try:
+            from agent.graph import build_graph
+            agent_graph = build_graph()
+            logger.info("Agent graph compiled and ready")
+        except Exception:
+            logger.exception("Failed to build agent graph — chat will be unavailable")
+
+        _app_ready = True
+
+        # Start the periodic anomaly scanner after a warm-up delay.
         time.sleep(60)
-        print("🚀 Background anomaly scanner started.")
+        logger.info("Background anomaly scanner started")
+
+        from services.cluster_monitor_service import cluster_monitor_service
         while True:
             try:
-                # Run a full cluster scan
                 cluster_monitor_service.scan_cluster()
-                print("⏱️  Background scan completed.")
-            except Exception as e:
-                print(f"❌ Background scan error: {e}")
-            
-            # Wait for 5 minutes before next scan
+                logger.info("Background scan completed")
+            except Exception:
+                logger.exception("Background scan error")
             time.sleep(300)
 
-    scanner_thread = threading.Thread(target=run_periodic_scan, daemon=True)
-    scanner_thread.start()
+    init_thread = threading.Thread(target=_background_init, daemon=True)
+    init_thread.start()
 
     yield
-    print("👋 Server shutting down.")
+    logger.info("Server shutting down")
 
 
 # ── App factory ───────────────────────────────────────────────────────────────
