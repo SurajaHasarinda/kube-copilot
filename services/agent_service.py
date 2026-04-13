@@ -138,21 +138,43 @@ class AgentService:
                 for event in self.graph.stream(initial_state, config, stream_mode="updates"):
                     for node, state in event.items():
                         logger.info("[%s] Node executed: %s", session.session_id, node)
+
+                        # Emit a step event for each node so the UI shows progress.
+                        if node == "agent":
+                            _put(self._sse_frame({
+                                "type": "thought",
+                                "step": "thinking",
+                                "content": "Analyzing your request…",
+                            }))
+
                         if isinstance(state, dict) and "messages" in state:
                             msgs = state["messages"] if isinstance(state["messages"], list) else [state["messages"]]
                             for msg in msgs:
                                 if hasattr(msg, "tool_calls") and msg.tool_calls:
-                                    tool_names = [t["name"] for t in msg.tool_calls]
-                                    _put(self._sse_frame({
-                                        "type": "thought",
-                                        "content": f"Agent calling tools: {tool_names}",
-                                    }))
+                                    for tc in msg.tool_calls:
+                                        _put(self._sse_frame({
+                                            "type": "thought",
+                                            "step": "tool_call",
+                                            "tool": tc["name"],
+                                            "args": tc.get("args", {}),
+                                            "content": f"Calling {tc['name']}",
+                                        }))
                                 elif getattr(msg, "type", None) == "tool":
                                     tool_name = getattr(msg, "name", "unknown")
+                                    content_preview = _extract_text(msg.content)[:200]
                                     _put(self._sse_frame({
                                         "type": "thought",
-                                        "content": f"Tool completed: {tool_name}",
+                                        "step": "tool_result",
+                                        "tool": tool_name,
+                                        "content": content_preview,
                                     }))
+
+                        if node == "save_memory":
+                            _put(self._sse_frame({
+                                "type": "thought",
+                                "step": "done",
+                                "content": "Preparing response…",
+                            }))
 
                 # Graph finished — build the final response.
                 result = self._build_result_from_state(session, config)
