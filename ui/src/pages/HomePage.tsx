@@ -126,6 +126,7 @@ const HomePage: React.FC = () => {
         const url = `/api/v1/chat/stream?message=${encodedMessage}&session_id=${encodedSessionId}&token=${token}`;
 
         const eventSource = new EventSource(url);
+        let receivedFinalResponse = false;
 
         // Placeholder agent message that we'll fill in when the final response arrives
         let currentAgentMessage: Message = { role: 'agent', content: '' };
@@ -153,6 +154,7 @@ const HomePage: React.FC = () => {
             }
 
             if (['response', 'error', 'approval_required'].includes(data.type)) {
+                receivedFinalResponse = true;
                 setMessages(prev => {
                     const newMessages = [...prev];
                     if (messageIndex === -1) messageIndex = newMessages.length - 1;
@@ -170,18 +172,23 @@ const HomePage: React.FC = () => {
         };
 
         eventSource.onerror = () => {
-            setMessages(prev => {
-                const newMessages = [...prev];
-                if (messageIndex === -1) messageIndex = newMessages.length - 1;
-                newMessages[messageIndex] = {
-                    ...newMessages[messageIndex],
-                    content: newMessages[messageIndex].content + '\n\n❌ Failed to communicate with the agent.'
-                };
-                return newMessages;
-            });
-            setLoading(false);
-            setIsThinking(false);
+            // EventSource fires onerror when the server closes the connection,
+            // which is normal after the final response. Only show an error if
+            // we never received the actual response.
             eventSource.close();
+            if (!receivedFinalResponse) {
+                setMessages(prev => {
+                    const newMessages = [...prev];
+                    if (messageIndex === -1) messageIndex = newMessages.length - 1;
+                    newMessages[messageIndex] = {
+                        ...newMessages[messageIndex],
+                        content: newMessages[messageIndex].content || '❌ Failed to communicate with the agent.',
+                    };
+                    return newMessages;
+                });
+                setLoading(false);
+                setIsThinking(false);
+            }
         };
     };
 
