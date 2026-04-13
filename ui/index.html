@@ -19,8 +19,22 @@
             success: '#28A745',
             warning: '#FFC107',
             danger: '#DC3545',
-            // Add other custom palette options to replace generically generated styles
-          }
+          },
+          animation: {
+            'slide-up': 'slide-up 0.3s ease-out',
+            'fade-in': 'fade-in 0.35s ease-out',
+            'spin-slow': 'spin 2s linear infinite',
+          },
+          keyframes: {
+            'slide-up': {
+              from: { transform: 'translateY(100%)', opacity: '0' },
+              to: { transform: 'translateY(0)', opacity: '1' },
+            },
+            'fade-in': {
+              from: { opacity: '0', transform: 'translateY(4px)' },
+              to: { opacity: '1', transform: 'translateY(0)' },
+            },
+          },
         }
       }
     }
@@ -50,23 +64,6 @@
 
     .custom-scrollbar::-webkit-scrollbar-thumb:hover {
       background: #475569;
-    }
-
-    /* Micro-Animations configuration */
-    @keyframes slide-up {
-      from {
-        transform: translateY(100%);
-        opacity: 0;
-      }
-
-      to {
-        transform: translateY(0);
-        opacity: 1;
-      }
-    }
-
-    .animate-slide-up {
-      animation: slide-up 0.3s ease-out;
     }
   </style>
 </head>

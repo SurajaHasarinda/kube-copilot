@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { ChatResponse, ApprovalInfo } from '../types';
-import { Send, User, CheckCircle, XCircle, X } from 'lucide-react';
+import { Send, User, CheckCircle, XCircle, X, Brain, Wrench, CircleCheck, Loader2, Sparkles } from 'lucide-react';
 import MessageContent from '../components/MessageContent';
 import { MentionItem, fetchClusterStructureMentions, fetchAnomalyMentions } from '../utils/contextCache';
 
@@ -13,6 +13,38 @@ interface Message {
     approvalStatus?: 'approved' | 'denied' | null;
 }
 
+interface ThoughtStep {
+    step: 'thinking' | 'tool_call' | 'tool_result' | 'done';
+    content: string;
+    tool?: string;
+    args?: Record<string, any>;
+    timestamp: number;
+}
+
+/** Human-friendly labels for tool names */
+const TOOL_LABELS: Record<string, string> = {
+    list_resources: 'Listing resources',
+    get_pod_logs: 'Reading pod logs',
+    describe_resource: 'Describing resource',
+    read_resource_yaml: 'Reading YAML config',
+    restart_deployment: 'Restarting deployment',
+    scale_deployment: 'Scaling deployment',
+    edit_resource_yaml: 'Editing resource',
+    get_cluster_anomaly: 'Fetching anomaly details',
+};
+
+const formatToolLabel = (tool: string) => TOOL_LABELS[tool] || tool.replace(/_/g, ' ');
+
+const formatArgs = (args: Record<string, any>): string => {
+    const parts: string[] = [];
+    if (args.namespace) parts.push(args.namespace);
+    if (args.resource_type) parts.push(args.resource_type);
+    if (args.name || args.pod_name || args.deployment_name)
+        parts.push(args.name || args.pod_name || args.deployment_name);
+    if (args.replicas !== undefined) parts.push(`replicas=${args.replicas}`);
+    return parts.length > 0 ? parts.join(' / ') : '';
+};
+
 const HomePage: React.FC = () => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
@@ -22,6 +54,10 @@ const HomePage: React.FC = () => {
     const [searchParams] = useSearchParams();
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+
+    // Thought process state
+    const [thoughtSteps, setThoughtSteps] = useState<ThoughtStep[]>([]);
+    const [isThinking, setIsThinking] = useState(false);
 
     const [mentionItems, setMentionItems] = useState<MentionItem[]>([]);
     const [mentionSearch, setMentionSearch] = useState<string | null>(null);
@@ -62,7 +98,7 @@ const HomePage: React.FC = () => {
         }
     }, [searchParams, sessionId]);
 
-    useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, loading]);
+    useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, loading, thoughtSteps]);
 
     const appendAgentMessage = (result: ChatResponse) => {
         setMessages(prev => [...prev, {
@@ -81,6 +117,8 @@ const HomePage: React.FC = () => {
 
         setMessages(prev => [...prev, { role: 'human', content: userText }]);
         setLoading(true);
+        setIsThinking(true);
+        setThoughtSteps([]);
 
         const token = localStorage.getItem('token');
         const encodedMessage = encodeURIComponent(userText);
@@ -89,7 +127,7 @@ const HomePage: React.FC = () => {
 
         const eventSource = new EventSource(url);
 
-        // Add a placeholder message for the agent that we will stream into
+        // Placeholder agent message that we'll fill in when the final response arrives
         let currentAgentMessage: Message = { role: 'agent', content: '' };
         setMessages(prev => [...prev, currentAgentMessage]);
         let messageIndex = -1;
@@ -97,42 +135,52 @@ const HomePage: React.FC = () => {
         eventSource.onmessage = (event) => {
             const data = JSON.parse(event.data);
 
-            setMessages(prev => {
-                const newMessages = [...prev];
-                if (messageIndex === -1) {
-                    messageIndex = newMessages.length - 1;
-                }
+            if (data.type === 'metadata') {
+                if (data.session_id) setSessionId(data.session_id);
+                return;
+            }
 
-                if (data.type === 'metadata') {
-                    if (data.session_id) {
-                        setSessionId(data.session_id);
-                    }
-                } else if (data.type === 'thought') {
-                    // Intentionally ignore 'thought' payloads as requested
-                } else if (['response', 'error', 'approval_required'].includes(data.type)) {
-                    // Final response, error, or approval required
-                    currentAgentMessage.content += data.content || '';
+            if (data.type === 'thought') {
+                const step: ThoughtStep = {
+                    step: data.step || 'thinking',
+                    content: data.content || '',
+                    tool: data.tool,
+                    args: data.args,
+                    timestamp: Date.now(),
+                };
+                setThoughtSteps(prev => [...prev, step]);
+                return;
+            }
+
+            if (['response', 'error', 'approval_required'].includes(data.type)) {
+                setMessages(prev => {
+                    const newMessages = [...prev];
+                    if (messageIndex === -1) messageIndex = newMessages.length - 1;
+                    currentAgentMessage.content = data.content || '';
                     if (data.type === 'approval_required') {
                         currentAgentMessage.approvalInfo = data.approval_info;
                     }
                     newMessages[messageIndex] = { ...currentAgentMessage };
-                    setLoading(false);
-                    eventSource.close();
-                }
-
-                return newMessages;
-            });
+                    return newMessages;
+                });
+                setLoading(false);
+                setIsThinking(false);
+                eventSource.close();
+            }
         };
 
         eventSource.onerror = () => {
             setMessages(prev => {
                 const newMessages = [...prev];
-                if (messageIndex !== -1) {
-                    newMessages[messageIndex] = { ...newMessages[messageIndex], content: newMessages[messageIndex].content + '\n\n❌ Failed to communicate with the agent.' };
-                }
+                if (messageIndex === -1) messageIndex = newMessages.length - 1;
+                newMessages[messageIndex] = {
+                    ...newMessages[messageIndex],
+                    content: newMessages[messageIndex].content + '\n\n❌ Failed to communicate with the agent.'
+                };
                 return newMessages;
             });
             setLoading(false);
+            setIsThinking(false);
             eventSource.close();
         };
     };
@@ -196,6 +244,75 @@ const HomePage: React.FC = () => {
             case 'anomaly': return 'bg-red-900/30 text-red-400';
             default: return 'bg-slate-700 text-slate-400';
         }
+    };
+
+    const renderThoughtStep = (step: ThoughtStep, index: number) => {
+        const isLast = index === thoughtSteps.length - 1;
+
+        if (step.step === 'thinking') {
+            return (
+                <div key={index} className="flex items-start gap-2.5 animate-fade-in">
+                    <div className={`mt-0.5 shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${isLast ? 'bg-brand/20 text-brand' : 'bg-slate-700/50 text-slate-500'}`}>
+                        {isLast ? <Brain size={12} className="animate-pulse" /> : <Brain size={12} />}
+                    </div>
+                    <span className={`text-sm ${isLast ? 'text-slate-300' : 'text-slate-500'}`}>
+                        {step.content}
+                    </span>
+                </div>
+            );
+        }
+
+        if (step.step === 'tool_call') {
+            const argsStr = step.args ? formatArgs(step.args) : '';
+            return (
+                <div key={index} className="flex items-start gap-2.5 animate-fade-in">
+                    <div className={`mt-0.5 shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${isLast ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-700/50 text-slate-500'}`}>
+                        {isLast ? <Wrench size={12} className="animate-pulse" /> : <Wrench size={12} />}
+                    </div>
+                    <div className="flex flex-col">
+                        <span className={`text-sm font-medium ${isLast ? 'text-amber-300' : 'text-slate-500'}`}>
+                            {formatToolLabel(step.tool || '')}
+                        </span>
+                        {argsStr && (
+                            <span className="text-xs text-slate-500 font-mono mt-0.5">{argsStr}</span>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        if (step.step === 'tool_result') {
+            return (
+                <div key={index} className="flex items-start gap-2.5 animate-fade-in">
+                    <div className="mt-0.5 shrink-0 w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                        <CircleCheck size={12} />
+                    </div>
+                    <div className="flex flex-col min-w-0 flex-1">
+                        <span className="text-sm text-emerald-400">
+                            {formatToolLabel(step.tool || '')} — done
+                        </span>
+                        {step.content && (
+                            <span className="text-xs text-slate-500 font-mono mt-0.5 truncate max-w-full" title={step.content}>
+                                {step.content.length > 120 ? step.content.slice(0, 120) + '…' : step.content}
+                            </span>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        if (step.step === 'done') {
+            return (
+                <div key={index} className="flex items-start gap-2.5 animate-fade-in">
+                    <div className="mt-0.5 shrink-0 w-5 h-5 rounded-full bg-brand/20 text-brand flex items-center justify-center">
+                        <Sparkles size={12} />
+                    </div>
+                    <span className="text-sm text-brand">{step.content}</span>
+                </div>
+            );
+        }
+
+        return null;
     };
 
     return (
@@ -265,14 +382,31 @@ const HomePage: React.FC = () => {
                     );
                 })}
 
-                {loading && !fetchingHistory && (
+                {/* Live thought process panel */}
+                {isThinking && (
                     <div className="flex gap-3 animate-fade-in">
                         <div className="shrink-0 w-8 h-8 rounded-full bg-brand/20 text-brand flex items-center justify-center shadow-lg shadow-brand/10">
                             <img src="/kube-copilot.svg" alt="Avatar" className="w-4 h-4" />
                         </div>
-                        <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-3 flex items-center gap-2 shadow-md">
-                            <div className="w-2 h-2 rounded-full bg-brand animate-ping" />
-                            <span className="text-sm text-slate-400 font-medium tracking-wide">Agent is thinking...</span>
+                        <div className="flex-1 max-w-[85%] bg-slate-800/50 border border-slate-700/50 rounded-lg p-4 shadow-md">
+                            {/* Header */}
+                            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-700/40">
+                                <Loader2 size={14} className="text-brand animate-spin" />
+                                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Agent Working</span>
+                            </div>
+
+                            {/* Steps timeline */}
+                            <div className="flex flex-col gap-2.5">
+                                {thoughtSteps.length === 0 && (
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-5 h-5 rounded-full bg-brand/20 text-brand flex items-center justify-center">
+                                            <Brain size={12} className="animate-pulse" />
+                                        </div>
+                                        <span className="text-sm text-slate-400">Starting…</span>
+                                    </div>
+                                )}
+                                {thoughtSteps.map((step, i) => renderThoughtStep(step, i))}
+                            </div>
                         </div>
                     </div>
                 )}
