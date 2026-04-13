@@ -206,12 +206,24 @@ class AgentService:
         # Kick off the blocking work on a thread-pool thread.
         thread_future = loop.run_in_executor(None, _run_graph)
 
+        # Cloudflare (and similar proxies) drop idle connections after ~100s.
+        # Sending a SSE comment every 15s keeps the connection alive.
+        HEARTBEAT_INTERVAL = 15  # seconds
+        SSE_HEARTBEAT = ": keepalive\n\n"
+
         try:
             while True:
-                item = await queue.get()
-                if item is None:
-                    break
-                yield item
+                try:
+                    item = await asyncio.wait_for(
+                        queue.get(), timeout=HEARTBEAT_INTERVAL
+                    )
+                    if item is None:
+                        break
+                    yield item
+                except asyncio.TimeoutError:
+                    # No real event within the heartbeat window — send a
+                    # SSE comment to keep Cloudflare from closing the connection.
+                    yield SSE_HEARTBEAT
         finally:
             await thread_future
 
